@@ -6,7 +6,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help install setup dev build start clean \
         db-generate db-migrate db-studio db-reset \
-        test test-watch lint typecheck
+        test test-coverage test-watch lint typecheck
 
 # ── Colours ──────────────────────────────────────────────────────────────────
 BOLD  := \033[1m
@@ -40,6 +40,7 @@ help:
 	@echo ""
 	@echo "$(CYAN)Quality$(RESET)"
 	@echo "  $(BOLD)make test$(RESET)          Run tests once"
+	@echo "  $(BOLD)make test-coverage$(RESET) Run tests with coverage report"
 	@echo "  $(BOLD)make test-watch$(RESET)    Run tests in watch mode"
 	@echo "  $(BOLD)make typecheck$(RESET)     Run tsc type checking (no emit)"
 	@echo ""
@@ -123,6 +124,10 @@ db-reset:
 test:
 	@echo "$(GREEN)▸ Running tests...$(RESET)"
 	npm run test
+
+test-coverage:
+	@echo "$(GREEN)▸ Running tests with coverage...$(RESET)"
+	npm run test:coverage
 
 test-watch:
 	npm run test:watch

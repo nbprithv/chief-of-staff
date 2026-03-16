@@ -12,6 +12,10 @@ pocketbase/pb_data/
 
 # Build output
 dist/
+data/
+
+# Test coverage
+coverage/
 
 # Editor
 .idea/

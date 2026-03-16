@@ -9,10 +9,10 @@ import './db/client.js';
 
 // Domain routers
 import { tasksRouter } from './domains/tasks/tasks.router.js';
+import { emailRouter } from './domains/email/email.router.js';
 
 // — future routers registered here as you build them —
 // import { projectsRouter }        from './domains/projects/projects.router.js';
-// import { emailRouter }           from './domains/email/email.router.js';
 // import { calendarRouter }        from './domains/calendar/calendar.router.js';
 // import { groceryRouter }         from './domains/grocery/grocery.router.js';
 // import { briefingRouter }        from './domains/briefing/briefing.router.js';
