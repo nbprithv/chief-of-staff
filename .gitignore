@@ -1,4 +1,23 @@
- .idea/
- node_modules/
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.example
+
+# PocketBase binary and live data
+pocketbase/pocketbase
+pocketbase/pocketbase.exe
+pocketbase/pb_data/
+
+# Build output
+dist/
+
+# Editor
+.idea/
+.vscode/
+
+# Misc
 package-lock.json
+scripts/
 tsconfig.json

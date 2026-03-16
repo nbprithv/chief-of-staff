@@ -1,0 +1,36 @@
+{
+  "name": "personal-assistant",
+  "version": "0.1.0",
+  "description": "Personal executive assistant — local Node + SQLite",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:studio": "drizzle-kit studio",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "fastify": "^4.28.0",
+    "@fastify/cors": "^9.0.1",
+    "drizzle-orm": "^0.30.10",
+    "better-sqlite3": "^12.8.0",
+    "zod": "^3.23.8",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3",
+    "googleapis": "^144.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "tsx": "^4.11.0",
+    "vitest": "^1.6.0",
+    "drizzle-kit": "^0.21.4",
+    "@types/node": "^20.14.0",
+    "@types/better-sqlite3": "^7.6.10",
+    "@types/node-cron": "^3.0.11"
+  }
+}
