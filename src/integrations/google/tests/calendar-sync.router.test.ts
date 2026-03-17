@@ -96,8 +96,9 @@ describe('POST /integrations/google/calendars/sync', () => {
         const app = await buildApp(service);
         await app.inject({ method: 'POST', url: '/integrations/google/calendars/sync', payload: {} });
 
-        const call = vi.mocked(service.sync).mock.calls[0][0];
-        expect(call.calendarId).toBeUndefined();
+        expect(service.sync).toHaveBeenCalledWith(
+            expect.objectContaining({ calendarId: undefined })
+        );
     });
 
     it('returns 400 when max_results exceeds 250', async () => {
