@@ -10,6 +10,7 @@ import './db/client.js';
 // Domain routers
 import { tasksRouter } from './domains/tasks/tasks.router.js';
 import { emailRouter } from './domains/email/email.router.js';
+import { googleAuthRouter } from '@/integrations/google/google-auth.router'
 
 // — future routers registered here as you build them —
 // import { projectsRouter }        from './domains/projects/projects.router.js';

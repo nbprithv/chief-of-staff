@@ -6,6 +6,7 @@ const schema = z.object({
   NODE_ENV:           z.enum(['development', 'production', 'test']).default('development'),
   DB_PATH:            z.string().default('./data/assistant.db'),
   ANTHROPIC_API_KEY:  z.string().startsWith('sk-ant-'),
+  SESSION_SECRET:     z.string().default('dev-secret-change-in-production'),
   GOOGLE_CLIENT_ID:      z.string().optional(),
   GOOGLE_CLIENT_SECRET:  z.string().optional(),
   GOOGLE_REDIRECT_URI:   z.string().url().optional(),
@@ -25,3 +26,11 @@ if (!parsed.success) {
 
 export const config = parsed.data;
 export type Config = typeof config;
+
+export function requireGoogleConfig() {
+  const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI } = config;
+  if (!GOOGLE_CLIENT_ID)     throw new Error('Google OAuth: Client ID not configured');
+  if (!GOOGLE_CLIENT_SECRET) throw new Error('Google OAuth: Client Secret not configured');
+  if (!GOOGLE_REDIRECT_URI)  throw new Error('Google OAuth: Redirect URI not configured');
+  return { clientId: GOOGLE_CLIENT_ID, clientSecret: GOOGLE_CLIENT_SECRET, redirectUri: GOOGLE_REDIRECT_URI };
+}

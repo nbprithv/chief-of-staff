@@ -5,7 +5,7 @@ import type { NewEmail } from '../../db/schema/emails.schema.js';
 
 type Db = typeof defaultDb;
 
-export function createEmailRepository(db: Db) {
+export function createEmailRepository(db: Db = defaultDb) {
     return {
 
         async findAll(filters?: {
