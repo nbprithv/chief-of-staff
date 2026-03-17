@@ -74,7 +74,7 @@ function createTestDb() {
 // Fixtures
 // ─────────────────────────────────────────────────────────────────────────────
 
-function makeNode(overrides: Partial<typeof nodes.$inferInsert> = {}): typeof nodes.$inferInsert {
+function makeNode(overrides: Partial<typeof nodes.$inferInsert> = {}): typeof nodes.$inferInsert & { id: string } {
     return {
         id:    crypto.randomUUID(),
         type:  'todo',
@@ -84,7 +84,7 @@ function makeNode(overrides: Partial<typeof nodes.$inferInsert> = {}): typeof no
 }
 
 let emailCounter = 0;
-function makeEmail(overrides: Partial<typeof emails.$inferInsert> = {}): typeof emails.$inferInsert {
+function makeEmail(overrides: Partial<typeof emails.$inferInsert> = {}): typeof emails.$inferInsert & { id: string } {
     emailCounter++;
     const fields = {
         gmail_id:     `msg_${emailCounter}`,
@@ -109,7 +109,7 @@ function makeLink(
     node_id: string,
     email_id: string,
     overrides: Partial<typeof nodeEmailLinks.$inferInsert> = {},
-): typeof nodeEmailLinks.$inferInsert {
+): typeof nodeEmailLinks.$inferInsert & { id: string } {
     return {
         id: crypto.randomUUID(),
         node_id,

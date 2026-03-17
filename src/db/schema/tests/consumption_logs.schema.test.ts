@@ -54,7 +54,7 @@ function createTestDb() {
 // Fixtures
 // ─────────────────────────────────────────────────────────────────────────────
 
-function makeGroceryItem(overrides: Partial<typeof nodes.$inferInsert> = {}): typeof nodes.$inferInsert {
+function makeGroceryItem(overrides: Partial<typeof nodes.$inferInsert> = {}): typeof nodes.$inferInsert & { id: string } {
     return {
         id:              crypto.randomUUID(),
         type:            'grocery_item',

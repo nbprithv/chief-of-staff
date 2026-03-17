@@ -46,7 +46,7 @@ function createTestDb() {
 // Fixtures
 // ─────────────────────────────────────────────────────────────────────────────
 
-function makeNode(overrides: Partial<typeof nodes.$inferInsert> = {}): typeof nodes.$inferInsert {
+function makeNode(overrides: Partial<typeof nodes.$inferInsert> = {}): typeof nodes.$inferInsert & { id: string } {
     return {
         id:    crypto.randomUUID(),
         type:  'todo',

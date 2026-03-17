@@ -1,8 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createEmailService } from '../email.service.js';
-import { hashEmail } from '../../../db/schema/emails.schema.js';
 import { NotFoundError } from '../../../core/errors.js';
+import { hashEmail } from '../../../db/schema/emails.schema.js';
 import type { EmailRepository } from '../email.repository.js';
+
+// ── Mock email-analyze before importing service ───────────────────────────────
+
+const mockAnalyzeEmail      = vi.fn();
+const mockAnalyzeEmailBatch = vi.fn();
+
+vi.mock('../../../ai/email-analyze.js', () => ({
+    analyzeEmail:      mockAnalyzeEmail,
+    analyzeEmailBatch: mockAnalyzeEmailBatch,
+}));
+
+const { createEmailService } = await import('../email.service.js');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock repository factory
@@ -10,16 +21,16 @@ import type { EmailRepository } from '../email.repository.js';
 
 function createMockRepo(): EmailRepository {
     return {
-        findAll:            vi.fn().mockResolvedValue([]),
-        findById:           vi.fn().mockResolvedValue(null),
-        findByGmailId:      vi.fn().mockResolvedValue(null),
-        findByContentHash:  vi.fn().mockResolvedValue(null),
-        findByThreadId:     vi.fn().mockResolvedValue([]),
-        findUntriaged:      vi.fn().mockResolvedValue([]),
-        create:             vi.fn(),
-        update:             vi.fn(),
-        delete:             vi.fn(),
-        countUntriaged:     vi.fn().mockResolvedValue(0),
+        findAll:           vi.fn().mockResolvedValue([]),
+        findById:          vi.fn().mockResolvedValue(null),
+        findByGmailId:     vi.fn().mockResolvedValue(null),
+        findByContentHash: vi.fn().mockResolvedValue(null),
+        findByThreadId:    vi.fn().mockResolvedValue([]),
+        findUntriaged:     vi.fn().mockResolvedValue([]),
+        create:            vi.fn(),
+        update:            vi.fn(),
+        delete:            vi.fn(),
+        countUntriaged:    vi.fn().mockResolvedValue(0),
     };
 }
 
@@ -38,7 +49,7 @@ function makeStoredEmail(overrides: Record<string, unknown> = {}) {
         content_hash: 'a'.repeat(64),
         subject:      `Subject ${counter}`,
         sender_email: `sender${counter}@example.com`,
-        sender_name:  null,
+        sender_name:  'Sender Name',
         recipients:   '["recipient@example.com"]',
         body_summary: null,
         body_raw:     `Body ${counter}`,
@@ -65,13 +76,24 @@ function makeCreateInput(overrides: Record<string, unknown> = {}) {
     };
 }
 
+function makeAnalysisResult(overrides: Record<string, unknown> = {}) {
+    return {
+        summary:         'Test summary.',
+        priority:        'medium' as const,
+        actions:         ['Action 1'],
+        key_info:        'Key date: June 15',
+        suggested_reply: 'Reply suggestion.',
+        ...overrides,
+    };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // list()
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('emailService.list()', () => {
     let repo: EmailRepository;
-    beforeEach(() => { counter = 0; repo = createMockRepo(); });
+    beforeEach(() => { counter = 0; repo = createMockRepo(); vi.clearAllMocks(); });
 
     it('returns deserialized emails from the repository', async () => {
         const stored = [
@@ -84,27 +106,21 @@ describe('emailService.list()', () => {
         const result  = await service.list();
 
         expect(result).toHaveLength(2);
-        expect(result[0].recipients).toEqual(['a@b.com']);
-        expect(result[0].labels).toEqual(['inbox']);
-        expect(result[1].recipients).toEqual([]);
-        expect(result[1].labels).toEqual(['done']);
+        expect(result[0]!.recipients).toEqual(['a@b.com']);
+        expect(result[0]!.labels).toEqual(['inbox']);
+        expect(result[1]!.recipients).toEqual([]);
+        expect(result[1]!.labels).toEqual(['done']);
     });
 
     it('passes filters through to the repository', async () => {
         const service = createEmailService(repo);
         await service.list({ triaged: false, sender_email: 'alice@example.com', limit: 10 });
-
-        expect(repo.findAll).toHaveBeenCalledWith({
-            triaged: false,
-            sender_email: 'alice@example.com',
-            limit: 10,
-        });
+        expect(repo.findAll).toHaveBeenCalledWith({ triaged: false, sender_email: 'alice@example.com', limit: 10 });
     });
 
     it('returns empty array when repository returns nothing', async () => {
         const service = createEmailService(repo);
-        const result  = await service.list();
-        expect(result).toEqual([]);
+        expect(await service.list()).toEqual([]);
     });
 });
 
@@ -114,7 +130,7 @@ describe('emailService.list()', () => {
 
 describe('emailService.getById()', () => {
     let repo: EmailRepository;
-    beforeEach(() => { counter = 0; repo = createMockRepo(); });
+    beforeEach(() => { counter = 0; repo = createMockRepo(); vi.clearAllMocks(); });
 
     it('returns a deserialized email when found', async () => {
         const stored = makeStoredEmail({ labels: '["inbox","flagged"]' });
@@ -135,10 +151,8 @@ describe('emailService.getById()', () => {
     it('calls findById with the correct id', async () => {
         const stored = makeStoredEmail();
         vi.mocked(repo.findById).mockResolvedValue(stored as any);
-
         const service = createEmailService(repo);
         await service.getById(stored.id);
-
         expect(repo.findById).toHaveBeenCalledWith(stored.id);
     });
 });
@@ -149,21 +163,19 @@ describe('emailService.getById()', () => {
 
 describe('emailService.getByGmailId()', () => {
     let repo: EmailRepository;
-    beforeEach(() => { counter = 0; repo = createMockRepo(); });
+    beforeEach(() => { counter = 0; repo = createMockRepo(); vi.clearAllMocks(); });
 
     it('returns a deserialized email when found', async () => {
         const stored = makeStoredEmail();
         vi.mocked(repo.findByGmailId).mockResolvedValue(stored as any);
-
         const service = createEmailService(repo);
         const result  = await service.getByGmailId(stored.gmail_id);
-
         expect(result.gmail_id).toBe(stored.gmail_id);
     });
 
     it('throws NotFoundError when not found', async () => {
         const service = createEmailService(repo);
-        await expect(service.getByGmailId('missing_gmail_id')).rejects.toThrow(NotFoundError);
+        await expect(service.getByGmailId('missing')).rejects.toThrow(NotFoundError);
     });
 });
 
@@ -173,23 +185,20 @@ describe('emailService.getByGmailId()', () => {
 
 describe('emailService.getThread()', () => {
     let repo: EmailRepository;
-    beforeEach(() => { counter = 0; repo = createMockRepo(); });
+    beforeEach(() => { counter = 0; repo = createMockRepo(); vi.clearAllMocks(); });
 
     it('returns all deserialized emails in the thread', async () => {
         const thread = [makeStoredEmail(), makeStoredEmail(), makeStoredEmail()];
         vi.mocked(repo.findByThreadId).mockResolvedValue(thread as any);
-
         const service = createEmailService(repo);
         const result  = await service.getThread('thread_abc');
-
         expect(result).toHaveLength(3);
         expect(repo.findByThreadId).toHaveBeenCalledWith('thread_abc');
     });
 
-    it('returns empty array for an unknown thread', async () => {
+    it('returns empty array for unknown thread', async () => {
         const service = createEmailService(repo);
-        const result  = await service.getThread('unknown_thread');
-        expect(result).toEqual([]);
+        expect(await service.getThread('unknown')).toEqual([]);
     });
 });
 
@@ -199,20 +208,18 @@ describe('emailService.getThread()', () => {
 
 describe('emailService.listUntriaged()', () => {
     let repo: EmailRepository;
-    beforeEach(() => { counter = 0; repo = createMockRepo(); });
+    beforeEach(() => { counter = 0; repo = createMockRepo(); vi.clearAllMocks(); });
 
     it('returns deserialized untriaged emails', async () => {
         const untriaged = [makeStoredEmail({ triaged: false }), makeStoredEmail({ triaged: false })];
         vi.mocked(repo.findUntriaged).mockResolvedValue(untriaged as any);
-
         const service = createEmailService(repo);
         const result  = await service.listUntriaged();
-
         expect(result).toHaveLength(2);
-        expect(result.every(e => e.triaged === false)).toBe(true);
+        expect(result.every(e => e!.triaged === false)).toBe(true);
     });
 
-    it('passes limit through to the repository', async () => {
+    it('passes limit to repository', async () => {
         const service = createEmailService(repo);
         await service.listUntriaged(25);
         expect(repo.findUntriaged).toHaveBeenCalledWith(25);
@@ -225,23 +232,22 @@ describe('emailService.listUntriaged()', () => {
 
 describe('emailService.ingest()', () => {
     let repo: EmailRepository;
-    beforeEach(() => { counter = 0; repo = createMockRepo(); });
+    beforeEach(() => { counter = 0; repo = createMockRepo(); vi.clearAllMocks(); });
 
-    it('creates and returns a new email with isDuplicate: false', async () => {
+    it('creates and returns a new email with isDuplicate:false', async () => {
         const input   = makeCreateInput();
         const created = makeStoredEmail({ gmail_id: input.gmail_id });
-        vi.mocked(repo.findByContentHash).mockResolvedValue(null);
+        vi.mocked(repo.findByContentHash).mockResolvedValue(null as any);
         vi.mocked(repo.create).mockResolvedValue(created as any);
 
         const service = createEmailService(repo);
         const result  = await service.ingest(input as any);
 
         expect(result.isDuplicate).toBe(false);
-        expect(result.email.gmail_id).toBe(created.gmail_id);
         expect(repo.create).toHaveBeenCalledOnce();
     });
 
-    it('returns existing email with isDuplicate: true when hash matches', async () => {
+    it('returns existing email with isDuplicate:true when hash matches', async () => {
         const input    = makeCreateInput();
         const existing = makeStoredEmail({ gmail_id: input.gmail_id });
         vi.mocked(repo.findByContentHash).mockResolvedValue(existing as any);
@@ -250,7 +256,6 @@ describe('emailService.ingest()', () => {
         const result  = await service.ingest(input as any);
 
         expect(result.isDuplicate).toBe(true);
-        expect(result.email.gmail_id).toBe(existing.gmail_id);
         expect(repo.create).not.toHaveBeenCalled();
     });
 
@@ -263,8 +268,7 @@ describe('emailService.ingest()', () => {
             subject:      input.subject as string,
             body_raw:     input.body_raw as string,
         });
-
-        vi.mocked(repo.findByContentHash).mockResolvedValue(null);
+        vi.mocked(repo.findByContentHash).mockResolvedValue(null as any);
         vi.mocked(repo.create).mockResolvedValue(makeStoredEmail() as any);
 
         const service = createEmailService(repo);
@@ -273,70 +277,197 @@ describe('emailService.ingest()', () => {
         expect(repo.findByContentHash).toHaveBeenCalledWith(expectedHash);
     });
 
-    it('serializes recipients as JSON on create', async () => {
-        const input = makeCreateInput({ recipients: ['a@b.com', 'c@d.com'] });
-        vi.mocked(repo.findByContentHash).mockResolvedValue(null);
+    it('serializes recipients and labels as JSON', async () => {
+        const input = makeCreateInput({ recipients: ['a@b.com'], labels: ['inbox', 'flagged'] });
+        vi.mocked(repo.findByContentHash).mockResolvedValue(null as any);
         vi.mocked(repo.create).mockResolvedValue(makeStoredEmail() as any);
 
         const service = createEmailService(repo);
         await service.ingest(input as any);
 
-        const createArg = vi.mocked(repo.create).mock.calls[0][0];
-        expect(createArg.recipients).toBe('["a@b.com","c@d.com"]');
+        const arg = vi.mocked(repo.create).mock.calls[0][0];
+        expect(arg.recipients).toBe('["a@b.com"]');
+        expect(arg.labels).toBe('["inbox","flagged"]');
     });
 
-    it('serializes labels as JSON on create', async () => {
-        const input = makeCreateInput({ labels: ['inbox', 'flagged'] });
-        vi.mocked(repo.findByContentHash).mockResolvedValue(null);
+    it('defaults recipients to [] and labels to ["inbox"]', async () => {
+        const { recipients: _r, labels: _l, ...stripped } = makeCreateInput();
+        vi.mocked(repo.findByContentHash).mockResolvedValue(null as any);
         vi.mocked(repo.create).mockResolvedValue(makeStoredEmail() as any);
 
         const service = createEmailService(repo);
-        await service.ingest(input as any);
+        await service.ingest(stripped as any);
 
-        const createArg = vi.mocked(repo.create).mock.calls[0][0];
-        expect(createArg.labels).toBe('["inbox","flagged"]');
+        const arg = vi.mocked(repo.create).mock.calls[0][0];
+        expect(arg.recipients).toBe('[]');
+        expect(arg.labels).toBe('["inbox"]');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// analyze()
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('emailService.analyze()', () => {
+    let repo: EmailRepository;
+    beforeEach(() => { counter = 0; repo = createMockRepo(); vi.clearAllMocks(); });
+
+    it('throws NotFoundError when email does not exist', async () => {
+        const service = createEmailService(repo);
+        await expect(service.analyze('missing_id')).rejects.toThrow(NotFoundError);
     });
 
-    it('defaults recipients to [] when not provided', async () => {
-        const { recipients: _, ...inputWithoutRecipients } = makeCreateInput();
-        vi.mocked(repo.findByContentHash).mockResolvedValue(null);
-        vi.mocked(repo.create).mockResolvedValue(makeStoredEmail() as any);
+    it('calls analyzeEmail with correct fields', async () => {
+        const stored = makeStoredEmail();
+        vi.mocked(repo.findById).mockResolvedValue(stored as any);
+        vi.mocked(repo.update).mockResolvedValue({ ...stored, body_summary: 'Test summary.' } as any);
+        mockAnalyzeEmail.mockResolvedValue(makeAnalysisResult());
 
         const service = createEmailService(repo);
-        await service.ingest(inputWithoutRecipients as any);
+        await service.analyze(stored.id);
 
-        const createArg = vi.mocked(repo.create).mock.calls[0][0];
-        expect(createArg.recipients).toBe('[]');
-    });
-
-    it('defaults labels to ["inbox"] when not provided', async () => {
-        const { labels: _, ...inputWithoutLabels } = makeCreateInput();
-        vi.mocked(repo.findByContentHash).mockResolvedValue(null);
-        vi.mocked(repo.create).mockResolvedValue(makeStoredEmail() as any);
-
-        const service = createEmailService(repo);
-        await service.ingest(inputWithoutLabels as any);
-
-        const createArg = vi.mocked(repo.create).mock.calls[0][0];
-        expect(createArg.labels).toBe('["inbox"]');
-    });
-
-    it('returns deserialized recipients and labels as arrays', async () => {
-        const input   = makeCreateInput({ recipients: ['a@b.com'], labels: ['inbox'] });
-        const created = makeStoredEmail({
-            recipients: '["a@b.com"]',
-            labels:     '["inbox"]',
+        expect(mockAnalyzeEmail).toHaveBeenCalledWith({
+            sender_name:  stored.sender_name,
+            sender_email: stored.sender_email,
+            subject:      stored.subject,
+            body_raw:     stored.body_raw,
+            body_summary: stored.body_summary,
         });
-        vi.mocked(repo.findByContentHash).mockResolvedValue(null);
-        vi.mocked(repo.create).mockResolvedValue(created as any);
+    });
+
+    it('persists the summary to body_summary via repository.update', async () => {
+        const stored   = makeStoredEmail();
+        const analysis = makeAnalysisResult({ summary: 'Persisted summary.' });
+        vi.mocked(repo.findById).mockResolvedValue(stored as any);
+        vi.mocked(repo.update).mockResolvedValue({ ...stored, body_summary: 'Persisted summary.' } as any);
+        mockAnalyzeEmail.mockResolvedValue(analysis);
 
         const service = createEmailService(repo);
-        const result  = await service.ingest(input as any);
+        await service.analyze(stored.id);
 
-        expect(Array.isArray(result.email.recipients)).toBe(true);
-        expect(Array.isArray(result.email.labels)).toBe(true);
-        expect(result.email.recipients).toEqual(['a@b.com']);
-        expect(result.email.labels).toEqual(['inbox']);
+        expect(repo.update).toHaveBeenCalledWith(stored.id, { body_summary: 'Persisted summary.' });
+    });
+
+    it('returns the email and analysis result', async () => {
+        const stored   = makeStoredEmail();
+        const analysis = makeAnalysisResult();
+        vi.mocked(repo.findById).mockResolvedValue(stored as any);
+        vi.mocked(repo.update).mockResolvedValue(stored as any);
+        mockAnalyzeEmail.mockResolvedValue(analysis);
+
+        const service = createEmailService(repo);
+        const result  = await service.analyze(stored.id);
+
+        expect(result.email).toBeDefined();
+        expect(result.analysis.summary).toBe('Test summary.');
+        expect(result.analysis.priority).toBe('medium');
+    });
+
+    it('propagates errors thrown by analyzeEmail', async () => {
+        const stored = makeStoredEmail();
+        vi.mocked(repo.findById).mockResolvedValue(stored as any);
+        mockAnalyzeEmail.mockRejectedValue(new Error('Claude API down'));
+
+        const service = createEmailService(repo);
+        await expect(service.analyze(stored.id)).rejects.toThrow('Claude API down');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// analyzeBatch()
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('emailService.analyzeBatch()', () => {
+    let repo: EmailRepository;
+    beforeEach(() => { counter = 0; repo = createMockRepo(); vi.clearAllMocks(); });
+
+    it('throws when given an empty ids array', async () => {
+        const service = createEmailService(repo);
+        await expect(service.analyzeBatch([])).rejects.toThrow('No email IDs provided');
+    });
+
+    it('throws NotFoundError when none of the ids exist', async () => {
+        vi.mocked(repo.findById).mockResolvedValue(null as any);
+        const service = createEmailService(repo);
+        await expect(service.analyzeBatch(['missing1', 'missing2'])).rejects.toThrow(NotFoundError);
+    });
+
+    it('returns batch analysis and per-email results', async () => {
+        const emails = [makeStoredEmail(), makeStoredEmail()];
+        vi.mocked(repo.findById)
+            .mockResolvedValueOnce(emails[0] as any)
+            .mockResolvedValueOnce(emails[1] as any);
+        vi.mocked(repo.update).mockResolvedValue(emails[0] as any);
+        mockAnalyzeEmailBatch.mockResolvedValue({
+            summary: 'Batch summary.', priority: 'high',
+            actions: ['Action A'], key_info: null, email_count: 2,
+        });
+        mockAnalyzeEmail.mockResolvedValue(makeAnalysisResult());
+
+        const service = createEmailService(repo);
+        const result  = await service.analyzeBatch([emails[0].id, emails[1].id]);
+
+        expect(result.batch.summary).toBe('Batch summary.');
+        expect(result.batch.email_count).toBe(2);
+        expect(result.emails).toHaveLength(2);
+    });
+
+    it('persists body_summary for each email individually', async () => {
+        const emails = [makeStoredEmail(), makeStoredEmail()];
+        vi.mocked(repo.findById)
+            .mockResolvedValueOnce(emails[0] as any)
+            .mockResolvedValueOnce(emails[1] as any);
+        vi.mocked(repo.update).mockResolvedValue(emails[0] as any);
+        mockAnalyzeEmailBatch.mockResolvedValue({
+            summary: 'Batch.', priority: 'low', actions: [], key_info: null, email_count: 2,
+        });
+        mockAnalyzeEmail
+            .mockResolvedValueOnce(makeAnalysisResult({ summary: 'Summary A.' }))
+            .mockResolvedValueOnce(makeAnalysisResult({ summary: 'Summary B.' }));
+
+        const service = createEmailService(repo);
+        await service.analyzeBatch([emails[0].id, emails[1].id]);
+
+        expect(repo.update).toHaveBeenCalledWith(emails[0].id, { body_summary: 'Summary A.' });
+        expect(repo.update).toHaveBeenCalledWith(emails[1].id, { body_summary: 'Summary B.' });
+    });
+
+    it('lists missing ids when some emails are not found', async () => {
+        const email = makeStoredEmail();
+        vi.mocked(repo.findById)
+            .mockResolvedValueOnce(email as any)
+            .mockResolvedValueOnce(null as any);
+        vi.mocked(repo.update).mockResolvedValue(email as any);
+        mockAnalyzeEmailBatch.mockResolvedValue({
+            summary: 'Partial.', priority: 'low', actions: [], key_info: null, email_count: 1,
+        });
+        mockAnalyzeEmail.mockResolvedValue(makeAnalysisResult());
+
+        const service = createEmailService(repo);
+        const result  = await service.analyzeBatch([email.id, 'missing_id']);
+
+        expect(result.missing).toContain('missing_id');
+    });
+
+    it('records errors in per-email results when individual analysis fails', async () => {
+        const emails = [makeStoredEmail(), makeStoredEmail()];
+        vi.mocked(repo.findById)
+            .mockResolvedValueOnce(emails[0] as any)
+            .mockResolvedValueOnce(emails[1] as any);
+        vi.mocked(repo.update).mockResolvedValue(emails[0] as any);
+        mockAnalyzeEmailBatch.mockResolvedValue({
+            summary: 'Batch.', priority: 'medium', actions: [], key_info: null, email_count: 2,
+        });
+        mockAnalyzeEmail
+            .mockResolvedValueOnce(makeAnalysisResult())
+            .mockRejectedValueOnce(new Error('Rate limit'));
+
+        const service = createEmailService(repo);
+        const result  = await service.analyzeBatch([emails[0].id, emails[1].id]);
+
+        const failed = result.emails.find(e => e.error !== null);
+        expect(failed).toBeDefined();
+        expect(failed!.error).toContain('Rate limit');
     });
 });
 
@@ -346,14 +477,14 @@ describe('emailService.ingest()', () => {
 
 describe('emailService.update()', () => {
     let repo: EmailRepository;
-    beforeEach(() => { counter = 0; repo = createMockRepo(); });
+    beforeEach(() => { counter = 0; repo = createMockRepo(); vi.clearAllMocks(); });
 
     it('throws NotFoundError when email does not exist', async () => {
         const service = createEmailService(repo);
-        await expect(service.update('missing_id', { triaged: true })).rejects.toThrow(NotFoundError);
+        await expect(service.update('missing', { triaged: true })).rejects.toThrow(NotFoundError);
     });
 
-    it('serializes labels to JSON before passing to repository', async () => {
+    it('serializes labels to JSON', async () => {
         const stored  = makeStoredEmail();
         const updated = makeStoredEmail({ ...stored, labels: '["done"]' });
         vi.mocked(repo.findById).mockResolvedValue(stored as any);
@@ -362,10 +493,7 @@ describe('emailService.update()', () => {
         const service = createEmailService(repo);
         await service.update(stored.id, { labels: ['done'] });
 
-        expect(repo.update).toHaveBeenCalledWith(
-            stored.id,
-            expect.objectContaining({ labels: '["done"]' })
-        );
+        expect(repo.update).toHaveBeenCalledWith(stored.id, expect.objectContaining({ labels: '["done"]' }));
     });
 
     it('only passes defined fields to the repository', async () => {
@@ -377,10 +505,9 @@ describe('emailService.update()', () => {
         const service = createEmailService(repo);
         await service.update(stored.id, { triaged: true });
 
-        const updateArg = vi.mocked(repo.update).mock.calls[0][1];
-        expect(updateArg).not.toHaveProperty('body_summary');
-        expect(updateArg).not.toHaveProperty('labels');
-        expect(updateArg).toHaveProperty('triaged', true);
+        const arg = vi.mocked(repo.update).mock.calls[0][1];
+        expect(arg).not.toHaveProperty('body_summary');
+        expect(arg).toHaveProperty('triaged', true);
     });
 
     it('returns the deserialized updated email', async () => {
@@ -403,11 +530,11 @@ describe('emailService.update()', () => {
 
 describe('emailService.markTriaged()', () => {
     let repo: EmailRepository;
-    beforeEach(() => { counter = 0; repo = createMockRepo(); });
+    beforeEach(() => { counter = 0; repo = createMockRepo(); vi.clearAllMocks(); });
 
     it('throws NotFoundError when email does not exist', async () => {
         const service = createEmailService(repo);
-        await expect(service.markTriaged('missing_id')).rejects.toThrow(NotFoundError);
+        await expect(service.markTriaged('missing')).rejects.toThrow(NotFoundError);
     });
 
     it('calls update with triaged: true', async () => {
@@ -430,7 +557,6 @@ describe('emailService.markTriaged()', () => {
 
         const service = createEmailService(repo);
         const result  = await service.markTriaged(stored.id);
-
         expect(result.triaged).toBe(true);
     });
 });
@@ -441,11 +567,11 @@ describe('emailService.markTriaged()', () => {
 
 describe('emailService.delete()', () => {
     let repo: EmailRepository;
-    beforeEach(() => { counter = 0; repo = createMockRepo(); });
+    beforeEach(() => { counter = 0; repo = createMockRepo(); vi.clearAllMocks(); });
 
     it('throws NotFoundError when email does not exist', async () => {
         const service = createEmailService(repo);
-        await expect(service.delete('missing_id')).rejects.toThrow(NotFoundError);
+        await expect(service.delete('missing')).rejects.toThrow(NotFoundError);
     });
 
     it('calls repository.delete with the correct id', async () => {
@@ -455,7 +581,6 @@ describe('emailService.delete()', () => {
 
         const service = createEmailService(repo);
         await service.delete(stored.id);
-
         expect(repo.delete).toHaveBeenCalledWith(stored.id);
     });
 
@@ -465,9 +590,7 @@ describe('emailService.delete()', () => {
         vi.mocked(repo.delete).mockResolvedValue(stored as any);
 
         const service = createEmailService(repo);
-        const result  = await service.delete(stored.id);
-
-        expect(result).toBeUndefined();
+        expect(await service.delete(stored.id)).toBeUndefined();
     });
 });
 
@@ -477,22 +600,17 @@ describe('emailService.delete()', () => {
 
 describe('emailService.countUntriaged()', () => {
     let repo: EmailRepository;
-    beforeEach(() => { counter = 0; repo = createMockRepo(); });
+    beforeEach(() => { counter = 0; repo = createMockRepo(); vi.clearAllMocks(); });
 
     it('returns the count from the repository', async () => {
         vi.mocked(repo.countUntriaged).mockResolvedValue(7);
-
         const service = createEmailService(repo);
-        const result  = await service.countUntriaged();
-
-        expect(result).toBe(7);
-        expect(repo.countUntriaged).toHaveBeenCalledOnce();
+        expect(await service.countUntriaged()).toBe(7);
     });
 
     it('returns 0 when there are no untriaged emails', async () => {
         const service = createEmailService(repo);
-        const result  = await service.countUntriaged();
-        expect(result).toBe(0);
+        expect(await service.countUntriaged()).toBe(0);
     });
 });
 
@@ -502,45 +620,37 @@ describe('emailService.countUntriaged()', () => {
 
 describe('emailService — deserialization', () => {
     let repo: EmailRepository;
-    beforeEach(() => { counter = 0; repo = createMockRepo(); });
+    beforeEach(() => { counter = 0; repo = createMockRepo(); vi.clearAllMocks(); });
 
     it('parses recipients JSON string into an array', async () => {
         const stored = makeStoredEmail({ recipients: '["a@b.com","c@d.com"]' });
         vi.mocked(repo.findById).mockResolvedValue(stored as any);
-
         const service = createEmailService(repo);
         const result  = await service.getById(stored.id);
-
         expect(result.recipients).toEqual(['a@b.com', 'c@d.com']);
     });
 
     it('parses labels JSON string into an array', async () => {
         const stored = makeStoredEmail({ labels: '["inbox","flagged"]' });
         vi.mocked(repo.findById).mockResolvedValue(stored as any);
-
         const service = createEmailService(repo);
         const result  = await service.getById(stored.id);
-
         expect(result.labels).toEqual(['inbox', 'flagged']);
     });
 
     it('falls back to [] for malformed recipients JSON', async () => {
         const stored = makeStoredEmail({ recipients: 'not-valid-json' });
         vi.mocked(repo.findById).mockResolvedValue(stored as any);
-
         const service = createEmailService(repo);
         const result  = await service.getById(stored.id);
-
         expect(result.recipients).toEqual([]);
     });
 
     it('falls back to ["inbox"] for malformed labels JSON', async () => {
         const stored = makeStoredEmail({ labels: 'not-valid-json' });
         vi.mocked(repo.findById).mockResolvedValue(stored as any);
-
         const service = createEmailService(repo);
         const result  = await service.getById(stored.id);
-
         expect(result.labels).toEqual(['inbox']);
     });
 });

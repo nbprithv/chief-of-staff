@@ -55,7 +55,7 @@ function createTestDb() {
 // Fixtures
 // ─────────────────────────────────────────────────────────────────────────────
 
-function makeHabit(overrides: Partial<typeof nodes.$inferInsert> = {}): typeof nodes.$inferInsert {
+function makeHabit(overrides: Partial<typeof nodes.$inferInsert> = {}): typeof nodes.$inferInsert & { id: string } {
     return {
         id:    crypto.randomUUID(),
         type:  'habit',
