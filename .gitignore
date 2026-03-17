@@ -22,6 +22,5 @@ coverage/
 .vscode/
 
 # Misc
-package-lock.json
 scripts/
 tsconfig.json
