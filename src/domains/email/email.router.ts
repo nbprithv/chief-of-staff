@@ -1,5 +1,4 @@
 import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
 import { emailService as defaultService } from './email.service.js';
 import { CreateEmailSchema, UpdateEmailSchema } from '../types.js';
 import { ValidationError } from '../../core/errors.js';
@@ -52,28 +51,6 @@ export function createEmailRouter(service: EmailService = defaultService) {
             return reply
                 .status(isDuplicate ? 200 : 201)
                 .send({ email, isDuplicate });
-        });
-
-        // ── POST /emails/:id/analyze ──────────────────────────────────────────────
-        // Runs a single email through Claude and persists the summary to body_summary.
-        app.post('/emails/:id/analyze', async (req, reply) => {
-            const { id } = req.params as { id: string };
-            const { email, analysis } = await service.analyze(id);
-            return reply.send({ email, analysis });
-        });
-
-        // ── POST /emails/analyze/batch ────────────────────────────────────────────
-        // Analyzes multiple emails. Returns a combined batch summary plus per-email
-        // analysis. Persists individual summaries to each email's body_summary.
-        app.post('/emails/analyze/batch', async (req, reply) => {
-            const schema = z.object({
-                ids: z.array(z.string()).min(1).max(20),
-            });
-            const parsed = schema.safeParse(req.body);
-            if (!parsed.success) throw new ValidationError('Invalid request', parsed.error.flatten());
-
-            const result = await service.analyzeBatch(parsed.data.ids);
-            return reply.send(result);
         });
 
         // ── PATCH /emails/:id ─────────────────────────────────────────────────────

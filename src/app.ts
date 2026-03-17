@@ -13,17 +13,11 @@ import { errorHandler } from './core/middleware/error-handler.js';
 import './db/client.js';
 
 // Domain routers
-import { tasksRouter } from './domains/tasks/tasks.router.js';
-import { emailRouter } from './domains/email/email.router.js';
-import { googleAuthRouter } from '@/integrations/google/google-auth.router'
-
-// — future routers registered here as you build them —
-// import { projectsRouter }        from './domains/projects/projects.router.js';
-// import { calendarRouter }        from './domains/calendar/calendar.router.js';
-// import { groceryRouter }         from './domains/grocery/grocery.router.js';
-// import { briefingRouter }        from './domains/briefing/briefing.router.js';
-// import { recommendationsRouter } from './domains/recommendations/recommendations.router.js';
-// import { habitsRouter }          from './domains/habits/habits.router.js';
+import { tasksRouter }        from './domains/tasks/tasks.router.js';
+import { emailRouter }        from './domains/email/email.router.js';
+import { googleAuthRouter }   from './integrations/google/google-auth.router.js';
+import { gmailSyncRouter }    from './integrations/google/gmail-sync.router.js';
+import { calendarSyncRouter } from './integrations/google/calendar-sync.router.js';
 
 async function bootstrap() {
   const app = Fastify({ logger: false });
@@ -41,6 +35,10 @@ async function bootstrap() {
 
   await app.register(async (v1) => {
     await v1.register(tasksRouter);
+    await v1.register(emailRouter);
+    await v1.register(googleAuthRouter);
+    await v1.register(gmailSyncRouter);
+    await v1.register(calendarSyncRouter);
   }, { prefix: '/api/v1' });
 
   app.setErrorHandler(errorHandler);

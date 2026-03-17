@@ -17,8 +17,6 @@ function createMockService(): EmailService {
         getThread:      vi.fn().mockResolvedValue([]),
         listUntriaged:  vi.fn().mockResolvedValue([]),
         ingest:         vi.fn(),
-        analyze:        vi.fn(),
-        analyzeBatch:   vi.fn(),
         update:         vi.fn(),
         markTriaged:    vi.fn(),
         delete:         vi.fn(),
@@ -59,14 +57,6 @@ function makeValidIngestBody(overrides: Record<string, unknown> = {}) {
         gmail_id: `gmail_${counter}`, subject: `Subject ${counter}`,
         sender_email: `sender${counter}@example.com`,
         received_at: '2024-06-01T09:00:00.000Z',
-        ...overrides,
-    };
-}
-
-function makeAnalysis(overrides: Record<string, unknown> = {}) {
-    return {
-        summary: 'Test summary.', priority: 'medium',
-        actions: ['Action 1'], key_info: null, suggested_reply: null,
         ...overrides,
     };
 }
@@ -221,131 +211,6 @@ describe('POST /emails/ingest', () => {
     it('does not call service when validation fails', async () => {
         await (await buildApp(service)).inject({ method: 'POST', url: '/emails/ingest', payload: { invalid: true } });
         expect(service.ingest).not.toHaveBeenCalled();
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /emails/:id/analyze
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('POST /emails/:id/analyze', () => {
-    let service: EmailService;
-    beforeEach(() => { counter = 0; service = createMockService(); });
-
-    it('returns 200 with email and analysis', async () => {
-        const email    = makeEmail();
-        const analysis = makeAnalysis();
-        vi.mocked(service.analyze).mockResolvedValue({ email: email as any, analysis: analysis as any });
-
-        const res  = await (await buildApp(service)).inject({ method: 'POST', url: `/emails/${email.id}/analyze` });
-        const body = res.json();
-
-        expect(res.statusCode).toBe(200);
-        expect(body.email.id).toBe(email.id);
-        expect(body.analysis.summary).toBe('Test summary.');
-        expect(body.analysis.priority).toBe('medium');
-    });
-
-    it('passes the correct id to service.analyze', async () => {
-        const email = makeEmail();
-        vi.mocked(service.analyze).mockResolvedValue({ email: email as any, analysis: makeAnalysis() as any });
-
-        const app = await buildApp(service);
-        await app.inject({ method: 'POST', url: `/emails/${email.id}/analyze` });
-
-        expect(service.analyze).toHaveBeenCalledWith(email.id);
-    });
-
-    it('returns 404 when email is not found', async () => {
-        vi.mocked(service.analyze).mockRejectedValue(new NotFoundError('Email', 'missing'));
-        const res = await (await buildApp(service)).inject({ method: 'POST', url: '/emails/missing/analyze' });
-        expect(res.statusCode).toBe(404);
-        expect(res.json().error.code).toBe('NOT_FOUND');
-    });
-
-    it('returns 502 when Claude API fails', async () => {
-        vi.mocked(service.analyze).mockRejectedValue(
-            Object.assign(new Error('Claude API error'), { statusCode: 502, code: 'EXTERNAL_SERVICE_ERROR' })
-        );
-        const res = await (await buildApp(service)).inject({ method: 'POST', url: '/emails/some_id/analyze' });
-        expect(res.statusCode).toBeGreaterThanOrEqual(500);
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /emails/analyze/batch
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('POST /emails/analyze/batch', () => {
-    let service: EmailService;
-    beforeEach(() => { counter = 0; service = createMockService(); });
-
-    it('returns 200 with batch and per-email results', async () => {
-        const emails = [makeEmail(), makeEmail()];
-        vi.mocked(service.analyzeBatch).mockResolvedValue({
-            batch:   { summary: 'Batch summary.', priority: 'high', actions: [], key_info: null, email_count: 2 },
-            emails:  emails.map(e => ({ id: e.id, subject: e.subject, analysis: makeAnalysis(), error: null })),
-            missing: [],
-        } as any);
-
-        const res  = await (await buildApp(service)).inject({
-            method: 'POST', url: '/emails/analyze/batch',
-            payload: { ids: [emails[0].id, emails[1].id] },
-        });
-        const body = res.json();
-
-        expect(res.statusCode).toBe(200);
-        expect(body.batch.summary).toBe('Batch summary.');
-        expect(body.emails).toHaveLength(2);
-        expect(body.missing).toEqual([]);
-    });
-
-    it('passes the ids array to service.analyzeBatch', async () => {
-        vi.mocked(service.analyzeBatch).mockResolvedValue({
-            batch: makeAnalysis(), emails: [], missing: [],
-        } as any);
-
-        const app = await buildApp(service);
-        await app.inject({
-            method: 'POST', url: '/emails/analyze/batch',
-            payload: { ids: ['id_1', 'id_2'] },
-        });
-
-        expect(service.analyzeBatch).toHaveBeenCalledWith(['id_1', 'id_2']);
-    });
-
-    it('returns 400 when ids array is empty', async () => {
-        const res = await (await buildApp(service)).inject({
-            method: 'POST', url: '/emails/analyze/batch',
-            payload: { ids: [] },
-        });
-        expect(res.statusCode).toBe(400);
-        expect(res.json().error.code).toBe('VALIDATION_ERROR');
-    });
-
-    it('returns 400 when ids is missing', async () => {
-        const res = await (await buildApp(service)).inject({
-            method: 'POST', url: '/emails/analyze/batch',
-            payload: {},
-        });
-        expect(res.statusCode).toBe(400);
-    });
-
-    it('returns 400 when ids exceeds 20', async () => {
-        const ids = Array.from({ length: 21 }, (_, i) => `id_${i}`);
-        const res = await (await buildApp(service)).inject({
-            method: 'POST', url: '/emails/analyze/batch',
-            payload: { ids },
-        });
-        expect(res.statusCode).toBe(400);
-    });
-
-    it('does not call service when validation fails', async () => {
-        await (await buildApp(service)).inject({
-            method: 'POST', url: '/emails/analyze/batch',
-            payload: { ids: [] },
-        });
-        expect(service.analyzeBatch).not.toHaveBeenCalled();
     });
 });
 

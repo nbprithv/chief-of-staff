@@ -1,8 +1,6 @@
 import { hashEmail } from '../../db/schema/emails.schema.js';
 import { createEmailRepository, emailRepository as defaultRepository } from './email.repository.js';
-import { analyzeEmail, analyzeEmailBatch } from '../../ai/email-analyze.js';
 import { NotFoundError } from '../../core/errors.js';
-import { logger } from '../../core/logger.js';
 import type { CreateEmailInput, UpdateEmailInput } from '../types.js';
 import type { EmailRepository } from './email.repository.js';
 
@@ -77,99 +75,6 @@ export function createEmailService(repository: EmailRepository = defaultReposito
             });
 
             return { email: deserialize(email)!, isDuplicate: false };
-        },
-
-        /**
-         * Analyzes a single email with Claude and persists the summary
-         * back to body_summary in the database.
-         */
-        async analyze(id: string) {
-            const email = await repository.findById(id);
-            if (!email) throw new NotFoundError('Email', id);
-
-            logger.info('Starting email analysis', { id, subject: email.subject });
-
-            const analysis = await analyzeEmail({
-                sender_name:  email.sender_name,
-                sender_email: email.sender_email,
-                subject:      email.subject,
-                body_raw:     email.body_raw,
-                body_summary: email.body_summary,
-            });
-
-            // Persist the summary back to the database
-            await repository.update(id, {
-                body_summary: analysis.summary,
-            });
-
-            logger.info('Email analysis complete', { id, priority: analysis.priority });
-
-            return {
-                email:    deserialize(email)!,
-                analysis,
-            };
-        },
-
-        /**
-         * Analyzes a batch of emails with Claude.
-         * Persists individual summaries back to each email's body_summary.
-         * Returns a single combined analysis plus per-email updates.
-         */
-        async analyzeBatch(ids: string[]) {
-            if (ids.length === 0) throw new Error('No email IDs provided');
-
-            const rows = await Promise.all(ids.map(id => repository.findById(id)));
-            const found = rows.filter((e): e is NonNullable<typeof e> => e !== null);
-            const missing = ids.filter((id, i) => rows[i] === null);
-
-            if (missing.length > 0) {
-                logger.warn('Some emails not found in batch', { missing });
-            }
-            if (found.length === 0) throw new NotFoundError('Emails', ids.join(', '));
-
-            logger.info('Starting batch email analysis', { count: found.length });
-
-            const batchAnalysis = await analyzeEmailBatch(
-                found.map(e => ({
-                    sender_name:  e.sender_name,
-                    sender_email: e.sender_email,
-                    subject:      e.subject,
-                    body_raw:     e.body_raw,
-                    body_summary: e.body_summary,
-                }))
-            );
-
-            // Run individual analyses in parallel and persist each summary
-            const individualResults = await Promise.allSettled(
-                found.map(async email => {
-                    const analysis = await analyzeEmail({
-                        sender_name:  email.sender_name,
-                        sender_email: email.sender_email,
-                        subject:      email.subject,
-                        body_raw:     email.body_raw,
-                        body_summary: email.body_summary,
-                    });
-
-                    await repository.update(email.id, { body_summary: analysis.summary });
-
-                    return { id: email.id, analysis };
-                })
-            );
-
-            const perEmail = individualResults.map((result, i) => ({
-                id:       found[i].id,
-                subject:  found[i].subject,
-                analysis: result.status === 'fulfilled' ? result.value.analysis : null,
-                error:    result.status === 'rejected'  ? result.reason?.message : null,
-            }));
-
-            logger.info('Batch analysis complete', { count: found.length });
-
-            return {
-                batch:    batchAnalysis,
-                emails:   perEmail,
-                missing,
-            };
         },
 
         async update(id: string, input: UpdateEmailInput) {
