@@ -7,7 +7,7 @@
     "dev": "tsx watch src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js",
-    "db:generate": "drizzle-kit generate",
+    "db:generate": "node --require tsx/cjs node_modules/.bin/drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "test": "vitest run",
@@ -17,6 +17,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@fastify/cors": "^9.0.1",
+    "@fastify/static": "^7.0.4",
     "better-sqlite3": "^12.8.0",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.30.10",

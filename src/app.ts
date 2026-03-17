@@ -1,6 +1,11 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import staticPlugin from '@fastify/static';
 import { config } from './core/config.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { logger } from './core/logger.js';
 import { errorHandler } from './core/middleware/error-handler.js';
 
@@ -24,6 +29,11 @@ async function bootstrap() {
   const app = Fastify({ logger: false });
 
   await app.register(cors, { origin: true });
+
+  await app.register(staticPlugin, {
+    root: path.join(__dirname, '../public'),
+    prefix: '/',
+  });
 
   app.get('/health', async (_req, reply) => {
     return reply.send({ status: 'ok', db: 'sqlite' });

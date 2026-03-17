@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email pipeline · assistant</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    /* Pipeline-specific overrides */
+    .app {
+      grid-template-columns: 260px 1fr;
+      grid-template-rows: 52px 1fr;
+    }
+
+    .pipeline-sidenav {
+      background: var(--ink);
+      color: #fff;
+      padding: 24px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow-y: auto;
+    }
+
+    .pipeline-step {
+      padding: 14px 24px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      border-left: 3px solid transparent;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .pipeline-step:hover  { background: rgba(255,255,255,.05); }
+    .pipeline-step.active { background: rgba(196,81,26,.15); border-left-color: var(--accent); }
+    .pipeline-step.done   { border-left-color: var(--green); }
+    .pipeline-step.locked { opacity: .3; pointer-events: none; }
+
+    .step-num {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      border: 1.5px solid #444;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      flex-shrink: 0;
+      margin-top: 1px;
+      color: #888;
+    }
+
+    .pipeline-step.active .step-num { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .pipeline-step.done   .step-num { background: var(--green);  border-color: var(--green);  color: #fff; font-size: 13px; }
+
+    .step-label { font-size: 12px; font-weight: 600; color: #ccc; margin-bottom: 2px; }
+    .step-sublabel { font-family: var(--mono); font-size: 10px; color: #555; }
+    .pipeline-step.active .step-label { color: #fff; }
+    .pipeline-step.done   .step-label { color: #8fd8b0; }
+
+    .pipeline-footer {
+      margin-top: auto;
+      padding: 14px 24px;
+      border-top: 1px solid #222;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: #444;
+    }
+
+    .pipeline-footer a {
+      color: #666;
+      text-decoration: none;
+    }
+
+    .pipeline-footer a:hover { color: #aaa; }
+
+    /* Step content */
+    .step-content { display: none; }
+    .step-content.active { display: block; }
+
+    .progress-bar { height: 2px; background: #2a2825; margin-bottom: 24px; border-radius: 1px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--accent); border-radius: 1px; transition: width 0.4s ease; }
+
+    .label-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .label-opt {
+      padding: 10px 12px;
+      background: var(--paper);
+      border: 1.5px solid var(--rule);
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink2);
+      text-align: center;
+      transition: all 0.12s;
+    }
+
+    .label-opt:hover   { border-color: var(--ink3); color: var(--ink); }
+    .label-opt.selected { border-color: var(--accent); color: var(--accent); background: #fde8de; font-weight: 600; }
+
+    .log-output {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink3);
+      line-height: 2;
+      margin-top: 12px;
+      min-height: 80px;
+    }
+
+    .log-output .log-ok   { color: var(--green); }
+    .log-output .log-err  { color: var(--accent); }
+    .log-output .log-dim  { color: var(--ink4); }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .stat-box {
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: 12px 14px;
+    }
+
+    .stat-box-num   { font-family: var(--mono); font-size: 20px; font-weight: 500; color: var(--ink); line-height: 1; margin-bottom: 3px; }
+    .stat-box-label { font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink4); }
+
+    .email-check-row {
+      display: grid;
+      grid-template-columns: 18px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 9px 12px;
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      border-left: 3px solid var(--rule);
+      border-radius: 2px;
+      margin-bottom: 5px;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+
+    .email-check-row:hover { background: #faf8f4; }
+    .email-check-row.selected { border-left-color: var(--accent); }
+    .email-check-row input { accent-color: var(--accent); cursor: pointer; }
+
+    .email-check-from    { font-size: 12px; font-weight: 600; color: var(--ink); }
+    .email-check-subject { font-size: 11px; color: var(--ink3); }
+    .email-check-date    { font-family: var(--mono); font-size: 10px; color: var(--ink4); white-space: nowrap; }
+
+    .node-review-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: start;
+      padding: 12px 14px;
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      border-left: 3px solid var(--accent);
+      border-radius: 2px;
+      margin-bottom: 8px;
+      animation: fadeIn 0.25s ease forwards;
+      opacity: 0;
+    }
+
+    .node-review-row:nth-child(odd)  { border-left-color: var(--accent); }
+    .node-review-row:nth-child(even) { border-left-color: var(--blue); }
+    .node-review-row.discarded { opacity: 0.35; }
+
+    .node-review-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+    .btn-accept {
+      font-family: var(--mono); font-size: 10px; font-weight: 600;
+      padding: 4px 10px; border-radius: 2px; cursor: pointer;
+      text-transform: uppercase; letter-spacing: 0.04em; transition: all 0.12s;
+      background: #e8f4ec; color: var(--green); border: 1.5px solid #95d5a8;
+    }
+    .btn-accept:hover { background: var(--green); color: #fff; }
+
+    .btn-discard {
+      font-family: var(--mono); font-size: 10px;
+      padding: 4px 10px; border-radius: 2px; cursor: pointer;
+      text-transform: uppercase; letter-spacing: 0.04em; transition: all 0.12s;
+      background: transparent; color: var(--ink4); border: 1.5px solid var(--rule);
+    }
+    .btn-discard:hover { border-color: var(--ink3); color: var(--ink); }
+
+    .btn-accepted-label {
+      font-family: var(--mono); font-size: 10px; font-weight: 600;
+      color: var(--green); text-transform: uppercase; letter-spacing: 0.04em;
+    }
+
+    .action-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--paper2);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      margin-bottom: 14px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink2);
+    }
+
+    .action-bar input { accent-color: var(--accent); cursor: pointer; }
+    .action-bar-right { margin-left: auto; display: flex; gap: 8px; }
+
+    .btn-primary-sm {
+      font-family: var(--mono); font-size: 11px; font-weight: 600;
+      padding: 7px 16px; border-radius: 2px; cursor: pointer;
+      text-transform: uppercase; letter-spacing: 0.04em; transition: all 0.15s;
+      background: var(--ink); color: #f0ece4; border: 1.5px solid var(--ink);
+    }
+    .btn-primary-sm:hover    { background: var(--accent); border-color: var(--accent); }
+    .btn-primary-sm:disabled { opacity: .4; cursor: not-allowed; }
+
+    .btn-ghost-sm {
+      font-family: var(--mono); font-size: 11px;
+      padding: 7px 14px; border-radius: 2px; cursor: pointer;
+      text-transform: uppercase; letter-spacing: 0.04em; transition: all 0.12s;
+      background: transparent; color: var(--ink3); border: 1.5px solid var(--rule);
+    }
+    .btn-ghost-sm:hover { border-color: var(--ink3); color: var(--ink); }
+
+    .success-box {
+      background: #e8f4ec;
+      border: 1px solid #95d5a8;
+      border-radius: 3px;
+      padding: 14px 18px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--green);
+      margin-top: 16px;
+      display: none;
+    }
+
+    .label-count-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .label-count-row input[type="number"] {
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 7px 10px;
+      border: 1.5px solid var(--rule);
+      border-radius: 3px;
+      background: var(--paper);
+      color: var(--ink);
+      width: 70px;
+      outline: none;
+    }
+
+    .label-count-row input[type="number"]:focus { border-color: var(--accent); }
+    .label-count-row label { font-family: var(--mono); font-size: 11px; color: var(--ink3); }
+  </style>
+</head>
+<body>
+<div class="app" style="grid-template-columns: 260px 1fr; grid-template-rows: 52px 1fr;">
+
+  <!-- Masthead -->
+  <header class="masthead">
+    <div class="masthead-title">assistant</div>
+    <div class="masthead-date" style="font-family:var(--mono);font-size:11px;color:#666;letter-spacing:.04em;padding-left:24px;border-left:1px solid #333">
+      Email pipeline
+    </div>
+    <div class="masthead-right">
+      <a href="/" style="font-family:var(--mono);font-size:11px;color:#666;text-decoration:none;letter-spacing:.04em">
+        ← Back to brief
+      </a>
+    </div>
+  </header>
+
+  <!-- Pipeline nav -->
+  <nav class="pipeline-sidenav">
+    <div class="pipeline-step active" id="pnav-1" onclick="goStep(1)">
+      <div class="step-num" id="pnum-1">1</div>
+      <div>
+        <div class="step-label">Connect Gmail</div>
+        <div class="step-sublabel">Auth + choose label</div>
+      </div>
+    </div>
+    <div class="pipeline-step locked" id="pnav-2" onclick="goStep(2)">
+      <div class="step-num" id="pnum-2">2</div>
+      <div>
+        <div class="step-label">Fetch Emails</div>
+        <div class="step-sublabel">Pull + store to DB</div>
+      </div>
+    </div>
+    <div class="pipeline-step locked" id="pnav-3" onclick="goStep(3)">
+      <div class="step-num" id="pnum-3">3</div>
+      <div>
+        <div class="step-label">Analyze with Claude</div>
+        <div class="step-sublabel">Extract nodes via AI</div>
+      </div>
+    </div>
+    <div class="pipeline-step locked" id="pnav-4" onclick="goStep(4)">
+      <div class="step-num" id="pnum-4">4</div>
+      <div>
+        <div class="step-label">Review Nodes</div>
+        <div class="step-sublabel">Accept or discard</div>
+      </div>
+    </div>
+    <div class="pipeline-footer">
+      <a href="/">← Back to brief</a>
+    </div>
+  </nav>
+
+  <!-- Pipeline content -->
+  <main class="main">
+
+    <!-- Step 1: Connect -->
+    <div class="step-content active" id="sc-1">
+      <div class="section-head" style="margin-bottom:20px">
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Step 01 / 04</div>
+          <div class="section-title">Connect Gmail</div>
+        </div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:25%"></div></div>
+
+      <div id="auth-block">
+        <p style="font-size:13px;color:var(--ink2);margin-bottom:16px;line-height:1.6;max-width:480px">
+          Sign in with your Google account to grant read access to Gmail. Credentials are stored locally and never leave your server.
+        </p>
+        <a href="/integrations/google/auth" id="connect-link"
+           style="display:inline-flex;align-items:center;gap:8px;padding:9px 18px;background:var(--ink);color:#f0ece4;border-radius:2px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;text-decoration:none;transition:background .15s"
+           onmouseover="this.style.background='#333'" onmouseout="this.style.background='var(--ink)'">
+          Connect Gmail →
+        </a>
+      </div>
+
+      <div id="label-block" style="display:none;margin-top:24px">
+        <p style="font-family:var(--mono);font-size:11px;color:var(--green);font-weight:500;margin-bottom:20px">✓ Connected</p>
+
+        <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:12px">Choose label to import</div>
+        <div class="label-grid" id="label-grid">
+          <div class="label-opt selected" onclick="selectLabel(this,'INBOX')">INBOX</div>
+          <div class="label-opt" onclick="selectLabel(this,'UNREAD')">UNREAD</div>
+          <div class="label-opt" onclick="selectLabel(this,'STARRED')">STARRED</div>
+          <div class="label-opt" onclick="selectLabel(this,'IMPORTANT')">IMPORTANT</div>
+          <div class="label-opt" onclick="selectLabel(this,'SENT')">SENT</div>
+        </div>
+
+        <div class="label-count-row">
+          <input type="number" id="email-limit" value="20" min="1" max="100">
+          <label>max emails to fetch</label>
+        </div>
+
+        <button class="btn-primary-sm" onclick="proceedToStep2()">Proceed to fetch →</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Fetch -->
+    <div class="step-content" id="sc-2">
+      <div class="section-head" style="margin-bottom:20px">
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Step 02 / 04</div>
+          <div class="section-title">Fetch &amp; Store</div>
+        </div>
+        <button class="btn-ghost-sm" onclick="goStep(1)">← Back</button>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:50%"></div></div>
+
+      <div id="fetch-idle">
+        <p style="font-size:13px;color:var(--ink2);margin-bottom:16px">
+          Fetch from label: <strong id="fetch-label-display" style="color:var(--accent)">INBOX</strong>
+        </p>
+        <button class="btn-primary-sm" onclick="startFetch()">↓ Fetch emails now</button>
+      </div>
+
+      <div id="fetch-running" style="display:none">
+        <div class="loading-row" style="margin-bottom:8px;font-family:var(--mono);font-size:12px;color:var(--ink3);display:flex;align-items:center;gap:8px">
+          <span class="spinner"></span> Connecting to Gmail API…
+        </div>
+        <div class="log-output" id="fetch-log"></div>
+      </div>
+
+      <div id="fetch-done" style="display:none">
+        <div class="stats-grid" id="fetch-stats-grid"></div>
+        <div id="fetch-dedup-notice" style="font-family:var(--mono);font-size:11px;color:var(--ink3);margin-bottom:14px"></div>
+
+        <div class="action-bar">
+          <input type="checkbox" id="sel-all" onchange="toggleSelAll(this.checked)">
+          <label for="sel-all" style="cursor:pointer">Select all</label>
+          <span id="sel-count" style="color:var(--accent)"></span>
+          <div class="action-bar-right">
+            <button class="btn-ghost-sm" onclick="goStep(1)">← Change label</button>
+            <button class="btn-primary-sm" id="btn-to-analyze" onclick="proceedToStep3()" disabled>Analyze selected →</button>
+          </div>
+        </div>
+        <div id="email-check-list"></div>
+      </div>
+    </div>
+
+    <!-- Step 3: Analyze -->
+    <div class="step-content" id="sc-3">
+      <div class="section-head" style="margin-bottom:20px">
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Step 03 / 04</div>
+          <div class="section-title">Analyze with Claude</div>
+        </div>
+        <button class="btn-ghost-sm" onclick="goStep(2)">← Back</button>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:75%"></div></div>
+
+      <div id="analyze-running">
+        <div style="font-family:var(--mono);font-size:12px;color:var(--ink3);display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span class="spinner"></span> Sending to Claude…
+        </div>
+        <div class="log-output" id="analyze-log"></div>
+      </div>
+
+      <div id="analyze-done" style="display:none">
+        <div class="stats-grid" id="analyze-stats-grid"></div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--green);font-weight:500;margin-bottom:16px" id="analyze-summary"></div>
+        <button class="btn-primary-sm" onclick="proceedToStep4()">Review nodes →</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Review -->
+    <div class="step-content" id="sc-4">
+      <div class="section-head" style="margin-bottom:20px">
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Step 04 / 04</div>
+          <div class="section-title">Review Nodes</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-ghost-sm" onclick="acceptAll()">Accept all</button>
+          <button class="btn-primary-sm" id="btn-save" onclick="saveNodes()">Save to DB</button>
+        </div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
+
+      <div class="stats-grid" id="review-stats-grid"></div>
+      <div id="node-review-list"></div>
+
+      <div class="success-box" id="save-success">
+        <span id="save-success-text"></span>
+        <br><br>
+        <a href="/" style="color:var(--green);font-weight:600">← Back to brief</a>
+        &nbsp;·&nbsp;
+        <span style="cursor:pointer;color:var(--green)" onclick="resetPipeline()">↻ Run again</span>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script type="module">
+  import { api } from '/js/api.js';
+
+  // ── State ──────────────────────────────────────────────────────────────────────
+  const S = {
+    label:      'INBOX',
+    maxEmails:  20,
+    emails:     [],
+    selected:   new Set(),
+    nodes:      [],
+    nodeStates: {},   // id → pending | accepted | discarded
+  };
+
+  // ── Step navigation ────────────────────────────────────────────────────────────
+
+  window.goStep = function(n) {
+    const nav = document.getElementById(`pnav-${n}`);
+    if (nav.classList.contains('locked')) return;
+
+    [1,2,3,4].forEach(i => {
+      document.getElementById(`pnav-${i}`)?.classList.remove('active');
+      document.getElementById(`sc-${i}`)?.classList.remove('active');
+    });
+
+    nav.classList.add('active');
+    document.getElementById(`sc-${n}`)?.classList.add('active');
+  };
+
+  function markDone(n) {
+    const nav = document.getElementById(`pnav-${n}`);
+    const num = document.getElementById(`pnum-${n}`);
+    nav.classList.remove('active', 'locked');
+    nav.classList.add('done');
+    num.textContent = '✓';
+    const next = document.getElementById(`pnav-${n+1}`);
+    if (next) next.classList.remove('locked');
+  }
+
+  // ── Step 1: auth ───────────────────────────────────────────────────────────────
+
+  async function checkGmailStatus() {
+    try {
+      const { connected, user } = await api.gmailStatus();
+      if (connected) showLabelPicker(user?.email);
+    } catch { /* not connected */ }
+
+    // Handle OAuth return params
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('auth') === 'success') {
+      const email = params.get('email') || '';
+      showLabelPicker(email);
+      window.history.replaceState({}, '', '/pipeline.html');
+    }
+  }
+
+  function showLabelPicker(email) {
+    document.getElementById('auth-block').style.display = 'none';
+    document.getElementById('label-block').style.display = 'block';
+    if (email) {
+      document.querySelector('#label-block p').textContent = `✓ Connected as ${email}`;
+    }
+  }
+
+  window.selectLabel = function(el, label) {
+    document.querySelectorAll('.label-opt').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+    S.label = label;
+  };
+
+  window.proceedToStep2 = function() {
+    S.maxEmails = parseInt(document.getElementById('email-limit').value) || 20;
+    document.getElementById('fetch-label-display').textContent = S.label;
+    markDone(1);
+    goStep(2);
+  };
+
+  // ── Step 2: fetch ──────────────────────────────────────────────────────────────
+
+  window.startFetch = async function() {
+    document.getElementById('fetch-idle').style.display    = 'none';
+    document.getElementById('fetch-running').style.display = 'block';
+
+    const log = document.getElementById('fetch-log');
+    const addLog = (msg, cls = '') =>
+            log.innerHTML += `<span class="${cls}">${msg}</span><br>`;
+
+    addLog(`→ connecting to gmail api…`);
+    await delay(300);
+
+    try {
+      addLog(`→ fetching label: ${S.label} (max ${S.maxEmails})…`);
+      const result = await api.gmailSync({ label: S.label, max_emails: S.maxEmails });
+      const r = result.result;
+
+      addLog(`→ found ${r.fetched} emails`, 'log-ok');
+      await delay(200);
+      addLog(`→ stored ${r.stored} new · ${r.duplicates} duplicates skipped`, 'log-dim');
+      if (r.errors > 0) addLog(`→ ${r.errors} errors`, 'log-err');
+      await delay(200);
+      addLog(`→ loading stored emails…`);
+
+      // Load from DB
+      const { emails } = await api.emails({ triaged: false, limit: S.maxEmails });
+      S.emails = emails;
+      S.selected = new Set(emails.map(e => e.id));
+
+      addLog(`→ complete`, 'log-ok');
+      await delay(300);
+
+      showFetchResults(r);
+    } catch (err) {
+      addLog(`→ error: ${err.message}`, 'log-err');
+    }
+  };
+
+  function showFetchResults(r) {
+    document.getElementById('fetch-running').style.display = 'none';
+    document.getElementById('fetch-done').style.display    = 'block';
+
+    document.getElementById('fetch-stats-grid').innerHTML = `
+    <div class="stat-box"><div class="stat-box-num">${r.fetched}</div><div class="stat-box-label">fetched</div></div>
+    <div class="stat-box"><div class="stat-box-num">${r.stored}</div><div class="stat-box-label">stored</div></div>
+    <div class="stat-box"><div class="stat-box-num">${r.duplicates}</div><div class="stat-box-label">duplicates</div></div>
+    <div class="stat-box"><div class="stat-box-num">${S.label}</div><div class="stat-box-label">label</div></div>`;
+
+    if (r.duplicates > 0) {
+      document.getElementById('fetch-dedup-notice').textContent =
+              `ℹ  ${r.duplicates} duplicate email${r.duplicates > 1 ? 's' : ''} skipped (content_hash matched)`;
+    }
+
+    renderEmailCheckList();
+  }
+
+  function renderEmailCheckList() {
+    const list = document.getElementById('email-check-list');
+    list.innerHTML = S.emails.map(e => {
+      const sel  = S.selected.has(e.id);
+      const date = new Date(e.received_at).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+      return `
+      <div class="email-check-row ${sel ? 'selected' : ''}" id="ecr-${e.id}">
+        <input type="checkbox" ${sel ? 'checked' : ''}
+               onchange="toggleEmail('${e.id}',this.checked)"
+               onclick="event.stopPropagation()">
+        <div>
+          <div class="email-check-from">${e.sender_name || e.sender_email}</div>
+          <div class="email-check-subject">${e.subject}</div>
+        </div>
+        <div class="email-check-date">${date}</div>
+      </div>`;
+    }).join('');
+    updateSelUI();
+  }
+
+  window.toggleEmail = function(id, checked) {
+    if (checked) S.selected.add(id);
+    else S.selected.delete(id);
+    document.getElementById(`ecr-${id}`)?.classList.toggle('selected', checked);
+    updateSelUI();
+  };
+
+  window.toggleSelAll = function(checked) {
+    S.emails.forEach(e => {
+      if (checked) S.selected.add(e.id);
+      else S.selected.delete(e.id);
+      document.getElementById(`ecr-${e.id}`)?.classList.toggle('selected', checked);
+      const chk = document.querySelector(`#ecr-${e.id} input`);
+      if (chk) chk.checked = checked;
+    });
+    updateSelUI();
+  };
+
+  function updateSelUI() {
+    const n   = S.selected.size;
+    const tot = S.emails.length;
+    document.getElementById('sel-count').textContent = n > 0 ? `${n} selected` : '';
+    document.getElementById('btn-to-analyze').disabled = n === 0;
+    const all = document.getElementById('sel-all');
+    if (all) { all.checked = n === tot && tot > 0; all.indeterminate = n > 0 && n < tot; }
+  }
+
+  window.proceedToStep3 = function() {
+    markDone(2);
+    goStep(3);
+    startAnalysis();
+  };
+
+  // ── Step 3: analyze ────────────────────────────────────────────────────────────
+
+  async function startAnalysis() {
+    const selectedEmails = S.emails.filter(e => S.selected.has(e.id));
+    const log = document.getElementById('analyze-log');
+    const addLog = (msg, cls = '') =>
+            log.innerHTML += `<span class="${cls}">${msg}</span><br>`;
+
+    addLog(`→ preparing ${selectedEmails.length} emails for analysis…`);
+    await delay(300);
+
+    try {
+      addLog(`→ POST /api/v1/emails/analyze/batch`);
+      const ids = selectedEmails.map(e => e.id);
+      const result = await api.emailAnalyzeBatch(ids);
+
+      addLog(`→ calling claude-sonnet…`);
+      await delay(400);
+      addLog(`→ extracted ${result.emails?.length ?? 0} per-email analyses`, 'log-ok');
+      await delay(200);
+
+      // Build nodes from analysis results
+      S.nodes = buildNodesFromAnalysis(result, selectedEmails);
+      S.nodeStates = {};
+      S.nodes.forEach(n => { S.nodeStates[n.id] = 'pending'; });
+
+      addLog(`→ generated ${S.nodes.length} candidate nodes`, 'log-ok');
+      await delay(200);
+      addLog(`→ complete`, 'log-ok');
+
+      showAnalyzeResults(result);
+    } catch (err) {
+      addLog(`→ error: ${err.message}`, 'log-err');
+    }
+  }
+
+  function buildNodesFromAnalysis(result, emails) {
+    const nodes = [];
+    let idx = 0;
+
+    (result.emails || []).forEach((item, i) => {
+      if (!item.analysis) return;
+      const email = emails[i];
+      const { actions, priority, key_info } = item.analysis;
+
+      // One node per action item
+      (actions || []).forEach(action => {
+        nodes.push({
+          id:           `node_${idx++}`,
+          type:         'todo',
+          title:        action,
+          description:  key_info || null,
+          priority:     mapPriority(priority),
+          due_at:       null,
+          source_email: email?.subject || '',
+          email_id:     email?.id,
+        });
+      });
+    });
+
+    // Fall back to batch summary if no per-email nodes
+    if (nodes.length === 0 && result.batch) {
+      (result.batch.actions || []).forEach(action => {
+        nodes.push({
+          id: `node_${idx++}`, type: 'todo',
+          title: action, description: result.batch.key_info || null,
+          priority: mapPriority(result.batch.priority),
+          due_at: null, source_email: 'batch analysis', email_id: null,
+        });
+      });
+    }
+
+    return nodes;
+  }
+
+  function mapPriority(p) {
+    return { high: 'p0', medium: 'p1', low: 'p2' }[p] || 'p2';
+  }
+
+  function showAnalyzeResults(result) {
+    document.getElementById('analyze-running').style.display = 'none';
+    document.getElementById('analyze-done').style.display    = 'block';
+
+    const counts = S.nodes.reduce((acc, n) => { acc[n.type] = (acc[n.type] || 0) + 1; return acc; }, {});
+    document.getElementById('analyze-stats-grid').innerHTML = `
+    <div class="stat-box"><div class="stat-box-num">${S.nodes.length}</div><div class="stat-box-label">nodes</div></div>
+    <div class="stat-box"><div class="stat-box-num">${counts.todo||0}</div><div class="stat-box-label">todos</div></div>
+    <div class="stat-box"><div class="stat-box-num">${counts.event||0}</div><div class="stat-box-label">events</div></div>
+    <div class="stat-box"><div class="stat-box-num">${counts.project||0}</div><div class="stat-box-label">projects</div></div>`;
+
+    document.getElementById('analyze-summary').textContent =
+            `✓ Claude extracted ${S.nodes.length} nodes from ${S.selected.size} emails. Review and accept below.`;
+  }
+
+  window.proceedToStep4 = function() {
+    markDone(3);
+    goStep(4);
+    renderReview();
+  };
+
+  // ── Step 4: review ─────────────────────────────────────────────────────────────
+
+  function renderReview() {
+    const accepted  = Object.values(S.nodeStates).filter(s => s === 'accepted').length;
+    const discarded = Object.values(S.nodeStates).filter(s => s === 'discarded').length;
+    const pending   = Object.values(S.nodeStates).filter(s => s === 'pending').length;
+
+    document.getElementById('review-stats-grid').innerHTML = `
+    <div class="stat-box"><div class="stat-box-num">${S.nodes.length}</div><div class="stat-box-label">total</div></div>
+    <div class="stat-box"><div class="stat-box-num" style="color:var(--green)">${accepted}</div><div class="stat-box-label">accepted</div></div>
+    <div class="stat-box"><div class="stat-box-num" style="color:var(--ink4)">${discarded}</div><div class="stat-box-label">discarded</div></div>
+    <div class="stat-box"><div class="stat-box-num" style="color:var(--amber)">${pending}</div><div class="stat-box-label">pending</div></div>`;
+
+    document.getElementById('node-review-list').innerHTML = S.nodes.map(node => {
+      const ns = S.nodeStates[node.id];
+      const typeClass = { todo: 'tag-todo', event: 'tag-event', project: 'tag-project', idea: 'tag-idea' }[node.type] || 'tag-todo';
+      const pClass    = { p0: 'tag-p0', p1: 'tag-p1' }[node.priority] || '';
+      const actions   = ns === 'accepted'
+              ? `<span class="btn-accepted-label">✓ accepted</span>`
+              : ns === 'discarded'
+                      ? `<span style="font-family:var(--mono);font-size:10px;color:var(--ink4);text-transform:uppercase">discarded</span>`
+                      : `<button class="btn-accept"  onclick="setNode('${node.id}','accepted')">Accept</button>
+         <button class="btn-discard" onclick="setNode('${node.id}','discarded')">Discard</button>`;
+
+      return `<div class="node-review-row ${ns === 'discarded' ? 'discarded' : ''}" id="nr-${node.id}">
+      <div>
+        <div class="node-title" style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:3px">${node.title}</div>
+        ${node.description ? `<div style="font-size:12px;color:var(--ink3);margin-bottom:5px">${node.description}</div>` : ''}
+        <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+          <span class="tag ${typeClass}">${node.type}</span>
+          ${pClass ? `<span class="tag ${pClass}">${node.priority.toUpperCase()}</span>` : ''}
+          <span style="font-family:var(--mono);font-size:10px;color:var(--ink4);margin-left:4px">from: ${node.source_email}</span>
+        </div>
+      </div>
+      <div class="node-review-actions">${actions}</div>
+    </div>`;
+    }).join('');
+  }
+
+  window.setNode = function(id, state) {
+    S.nodeStates[id] = state;
+    renderReview();
+  };
+
+  window.acceptAll = function() {
+    S.nodes.forEach(n => { S.nodeStates[n.id] = 'accepted'; });
+    renderReview();
+  };
+
+  window.saveNodes = async function() {
+    const accepted = S.nodes.filter(n => S.nodeStates[n.id] === 'accepted');
+    if (accepted.length === 0) return;
+
+    document.getElementById('btn-save').textContent = 'Saving…';
+    document.getElementById('btn-save').disabled    = true;
+
+    let saved = 0;
+    for (const node of accepted) {
+      try {
+        await api.nodeCreate({
+          type:        node.type,
+          title:       node.title,
+          description: node.description,
+          priority:    node.priority,
+          due_at:      node.due_at,
+          capture_source: 'email',
+          source_email_id: node.email_id,
+        });
+        saved++;
+      } catch (err) {
+        console.error('Failed to save node:', node.title, err);
+      }
+    }
+
+    const box  = document.getElementById('save-success');
+    box.style.display = 'block';
+    document.getElementById('save-success-text').textContent =
+            `${saved} node${saved !== 1 ? 's' : ''} saved to the database. They will appear in your daily brief.`;
+
+    markDone(4);
+  };
+
+  window.resetPipeline = function() {
+    S.emails = []; S.selected = new Set(); S.nodes = []; S.nodeStates = {};
+    [1,2,3,4].forEach(i => {
+      const nav = document.getElementById(`pnav-${i}`);
+      const num = document.getElementById(`pnum-${i}`);
+      nav.classList.remove('done','active','locked');
+      num.textContent = i;
+      if (i > 1) nav.classList.add('locked');
+    });
+    document.getElementById('fetch-idle').style.display    = 'block';
+    document.getElementById('fetch-running').style.display = 'none';
+    document.getElementById('fetch-done').style.display    = 'none';
+    document.getElementById('fetch-log').innerHTML         = '';
+    document.getElementById('analyze-running').style.display = 'block';
+    document.getElementById('analyze-done').style.display    = 'none';
+    document.getElementById('analyze-log').innerHTML          = '';
+    document.getElementById('save-success').style.display    = 'none';
+    document.getElementById('btn-save').textContent = 'Save to DB';
+    document.getElementById('btn-save').disabled    = false;
+    goStep(1);
+  };
+
+  // ── Utils ──────────────────────────────────────────────────────────────────────
+
+  function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  // Boot
+  checkGmailStatus();
+</script>
+</body>
+</html>
