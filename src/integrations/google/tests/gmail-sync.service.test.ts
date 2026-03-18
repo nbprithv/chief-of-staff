@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ExternalServiceError } from '../../../core/errors.js';
+import { config } from '../../../core/config.js';
 
 // ── Mock googleapis ───────────────────────────────────────────────────────────
 
@@ -101,8 +102,17 @@ function makeMultipartMessage() {
 // listMessageIds()
 // ─────────────────────────────────────────────────────────────────────────────
 
+const mockLabelsResponse = { data: { labels: [
+    { id: 'INBOX',    name: 'INBOX' },
+    { id: 'galloway', name: 'galloway' },
+    { id: 'STARRED',  name: 'STARRED' },
+] } };
+
 describe('gmailSyncService.listMessageIds()', () => {
-    beforeEach(() => { vi.clearAllMocks(); });
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockLabelsList.mockResolvedValue(mockLabelsResponse);
+    });
 
     it('returns message ids from Gmail', async () => {
         mockMessagesList.mockResolvedValue({
@@ -136,12 +146,12 @@ describe('gmailSyncService.listMessageIds()', () => {
         expect(result.ids).toEqual([]);
     });
 
-    it('defaults label to INBOX', async () => {
+    it('defaults label to GMAIL_LABEL env var', async () => {
         mockMessagesList.mockResolvedValue({ data: { messages: [] } });
         const service = createGmailSyncService(createMockRepo() as any);
         await service.listMessageIds();
         expect(mockMessagesList).toHaveBeenCalledWith(
-            expect.objectContaining({ labelIds: ['INBOX'] })
+            expect.objectContaining({ labelIds: [config.GMAIL_LABEL] })
         );
     });
 
@@ -300,7 +310,10 @@ describe('gmailSyncService.fetchMessage()', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('gmailSyncService.sync()', () => {
-    beforeEach(() => { vi.clearAllMocks(); });
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockLabelsList.mockResolvedValue(mockLabelsResponse);
+    });
 
     it('returns zeroed result when no messages are found', async () => {
         mockMessagesList.mockResolvedValue({ data: { messages: [] } });
@@ -406,12 +419,12 @@ describe('gmailSyncService.sync()', () => {
         expect(result.nextPageToken).toBe('page_xyz');
     });
 
-    it('uses INBOX as default label', async () => {
+    it('uses GMAIL_LABEL env var as default label', async () => {
         mockMessagesList.mockResolvedValue({ data: { messages: [] } });
         const service = createGmailSyncService(createMockRepo() as any);
         await service.sync();
         expect(mockMessagesList).toHaveBeenCalledWith(
-            expect.objectContaining({ labelIds: ['INBOX'] })
+            expect.objectContaining({ labelIds: [config.GMAIL_LABEL] })
         );
     });
 
