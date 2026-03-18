@@ -33,12 +33,15 @@ async function bootstrap() {
     return reply.send({ status: 'ok', db: 'sqlite' });
   });
 
+  // Google OAuth + sync routes live at root (no /api/v1 prefix) because
+  // the auth flow uses browser redirects and the UI links to them directly.
+  await app.register(googleAuthRouter);
+  await app.register(gmailSyncRouter);
+  await app.register(calendarSyncRouter);
+
   await app.register(async (v1) => {
     await v1.register(tasksRouter);
     await v1.register(emailRouter);
-    await v1.register(googleAuthRouter);
-    await v1.register(gmailSyncRouter);
-    await v1.register(calendarSyncRouter);
   }, { prefix: '/api/v1' });
 
   app.setErrorHandler(errorHandler);

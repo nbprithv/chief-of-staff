@@ -455,6 +455,30 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
 .event-name { font-size: 12px; font-weight: 500; color: var(--ink); }
 .event-loc  { font-size: 11px; color: var(--ink3); margin-top: 1px; }
 
+/* ── Date group label ───────────────────────────────────────────────────────── */
+
+.date-group-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink4);
+    padding: 14px 0 6px;
+}
+
+.date-group-label:first-child { padding-top: 0; }
+
+/* ── Placeholder loading row ─────────────────────────────────────────────────── */
+
+.placeholder-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 0;
+    color: var(--ink4);
+}
+
 /* ── Grocery + habit rows ───────────────────────────────────────────────────── */
 
 .simple-row {

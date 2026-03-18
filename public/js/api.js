@@ -35,6 +35,10 @@ export const api = {
     emailAnalyzeBatch:(ids)=> request('POST', `${BASE}/emails/analyze/batch`, { ids }),
     emailTriage:     (id)  => request('POST', `${BASE}/emails/${id}/triage`),
 
+    // ── Calendar ──────────────────────────────────────────────────────────────
+    calendarSync:   (opts) => request('POST', '/integrations/google/calendars/sync', opts ?? {}),
+    calendarList:   ()     => request('GET',  '/integrations/google/calendars'),
+
     // ── Nodes (tasks, events, projects, ideas) ────────────────────────────────
     nodes:     (q)    => request('GET',    `${BASE}/nodes?${new URLSearchParams(q || {})}`),
     nodeInbox: ()     => request('GET',    `${BASE}/nodes/inbox`),

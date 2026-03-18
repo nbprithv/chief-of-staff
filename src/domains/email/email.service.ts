@@ -4,6 +4,8 @@ import { NotFoundError } from '../../core/errors.js';
 import type { CreateEmailInput, UpdateEmailInput } from '../types.js';
 import type { EmailRepository } from './email.repository.js';
 
+import { logger } from '../../core/logger';
+
 export function createEmailService(repository: EmailRepository = defaultRepository) {
     return {
 
@@ -56,6 +58,7 @@ export function createEmailService(repository: EmailRepository = defaultReposito
 
             const existing = await repository.findByContentHash(content_hash);
             if (existing) {
+                logger.info('>>>>>saving email>>>')
                 return { email: deserialize(existing)!, isDuplicate: true };
             }
 

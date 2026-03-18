@@ -4,7 +4,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 .DEFAULT_GOAL := help
-.PHONY: help install setup dev build start clean \
+.PHONY: help install setup dev dev-debug build start clean \
         db-generate db-migrate db-studio db-reset \
         test test-coverage test-watch lint typecheck
 
@@ -29,6 +29,7 @@ help:
 	@echo ""
 	@echo "$(CYAN)Development$(RESET)"
 	@echo "  $(BOLD)make dev$(RESET)           Start the API server in watch mode"
+	@echo "  $(BOLD)make dev-debug$(RESET)     Start with Node inspector (port 9229) for debugger attachment"
 	@echo "  $(BOLD)make build$(RESET)         Compile TypeScript to dist/"
 	@echo "  $(BOLD)make start$(RESET)         Run compiled build"
 	@echo ""
@@ -80,6 +81,11 @@ setup: install .env data/ db-migrate
 dev:
 	@echo "$(GREEN)▸ Starting dev server...$(RESET)"
 	npm run dev
+
+dev-debug:
+	@echo "$(GREEN)▸ Starting dev server with inspector on ws://127.0.0.1:9229$(RESET)"
+	@echo "$(CYAN)  Attach debugger: Run → Attach to Node.js/Chrome… in WebStorm$(RESET)"
+	npm run dev:debug
 
 build:
 	@echo "$(GREEN)▸ Building...$(RESET)"

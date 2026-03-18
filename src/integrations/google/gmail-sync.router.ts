@@ -10,7 +10,7 @@ export function createGmailSyncRouter(service: GmailSyncService = defaultService
         // ── POST /integrations/google/sync ──────────────────────────────────────
         app.post('/integrations/google/sync', async (req, reply) => {
             const schema = z.object({
-                label:      z.string().default('INBOX'),
+                label:      z.string().default('galloway'),
                 max_emails: z.number().int().positive().max(100).default(50),
             });
             const parsed = schema.safeParse(req.body ?? {});

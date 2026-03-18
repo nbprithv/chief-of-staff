@@ -4,6 +4,7 @@ import { hashEmail } from '../../db/schema/emails.schema.js';
 import { createEmailRepository } from '../../domains/email/email.repository.js';
 import { logger } from '../../core/logger.js';
 import { ExternalServiceError } from '../../core/errors.js';
+import { config } from '../../core/config.js';
 import type { EmailRepository } from '../../domains/email/email.repository.js';
 
 export interface SyncOptions {
@@ -110,15 +111,34 @@ export function createGmailSyncService(repository: EmailRepository = createEmail
          * Lists message IDs from Gmail for a given label.
          * Returns up to maxEmails IDs and a nextPageToken for pagination.
          */
-        async listMessageIds(options: SyncOptions = {}) {
-            const { label = 'INBOX', maxEmails = 50, pageToken } = options;
+        async resolveLabelId(labelName: string): Promise<string> {
             const client = await getAuthenticatedClient();
             const gmail  = google.gmail({ version: 'v1', auth: client });
+
+            const res = await gmail.users.labels.list({ userId: 'me' });
+            const match = (res.data.labels ?? []).find(
+                (l: any) => l.name?.toLowerCase() === labelName.toLowerCase()
+            );
+
+            if (!match?.id) {
+                throw new ExternalServiceError('Gmail', `Label "${labelName}" not found`);
+            }
+
+            logger.debug('Resolved label', { name: labelName, id: match.id });
+            return match.id as string;
+        },
+
+        async listMessageIds(options: SyncOptions = {}) {
+            const { label = config.GMAIL_LABEL, maxEmails = 50, pageToken } = options;
+            const client = await getAuthenticatedClient();
+            const gmail  = google.gmail({ version: 'v1', auth: client });
+
+            const labelId = await this.resolveLabelId(label);
 
             try {
                 const res = await gmail.users.messages.list({
                     userId:    'me',
-                    labelIds:  [label],
+                    labelIds:  [labelId],
                     maxResults: Math.min(maxEmails, 100),
                     pageToken,
                 });
@@ -156,7 +176,7 @@ export function createGmailSyncService(repository: EmailRepository = createEmail
          * content_hash, and stores new emails to the repository.
          */
         async sync(options: SyncOptions = {}): Promise<SyncResult> {
-            const { label = 'INBOX', maxEmails = 50 } = options;
+            const { label = config.GMAIL_LABEL, maxEmails = 50 } = options;
 
             logger.info('Gmail sync starting', { label, maxEmails });
 
@@ -212,6 +232,7 @@ export function createGmailSyncService(repository: EmailRepository = createEmail
                     });
 
                     result.stored++;
+                    logger.info('Email stored', { gmail_id: id, subject: email.subject });
                     logger.debug('Email stored', { gmail_id: id, subject: email.subject });
                 } catch (err: any) {
                     result.errors++;

@@ -11,6 +11,7 @@ import type { GmailSyncService } from '../../../../src/integrations/google/gmail
 
 function createMockService(): GmailSyncService {
     return {
+        resolveLabelId: vi.fn(),
         listMessageIds: vi.fn(),
         fetchMessage:   vi.fn(),
         sync:           vi.fn(),
