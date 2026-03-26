@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { calendarSyncService as defaultService } from './calendar-sync.service.js';
 import { ValidationError } from '../../core/errors.js';
+import { getUserId } from '../../core/session.js';
 import type { CalendarSyncService } from './calendar-sync.service.js';
 
 export function createCalendarSyncRouter(service: CalendarSyncService = defaultService) {
@@ -9,6 +10,9 @@ export function createCalendarSyncRouter(service: CalendarSyncService = defaultS
 
         // ── POST /integrations/google/calendars/sync ──────────────────────────────
         app.post('/integrations/google/calendars/sync', async (req, reply) => {
+            const userId = getUserId(req);
+            if (!userId) return reply.status(401).send({ error: 'Not authenticated' });
+
             const schema = z.object({
                 calendar_id: z.string().optional(),
                 time_min:    z.string().optional(),
@@ -23,14 +27,16 @@ export function createCalendarSyncRouter(service: CalendarSyncService = defaultS
                 timeMin:     parsed.data.time_min,
                 timeMax:     parsed.data.time_max,
                 maxResults:  parsed.data.max_results,
-            });
+            }, userId);
 
             return reply.send({ result });
         });
 
         // ── GET /integrations/google/calendars ────────────────────────────────────
-        app.get('/integrations/google/calendars', async (_req, reply) => {
-            const calendars = await service.listCalendars();
+        app.get('/integrations/google/calendars', async (req, reply) => {
+            const userId = getUserId(req);
+            if (!userId) return reply.status(401).send({ error: 'Not authenticated' });
+            const calendars = await service.listCalendars(userId);
             return reply.send({ calendars });
         });
     };

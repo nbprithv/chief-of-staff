@@ -49,12 +49,10 @@ function parseEmailAddress(raw: string): { name: string | null; email: string } 
 function decodeBody(part: any): string {
     if (!part) return '';
 
-    // Prefer text/plain
     if (part.mimeType === 'text/plain' && part.body?.data) {
         return Buffer.from(part.body.data, 'base64url').toString('utf8');
     }
 
-    // Recurse into multipart
     if (part.parts) {
         for (const subpart of part.parts) {
             const text = decodeBody(subpart);
@@ -66,11 +64,9 @@ function decodeBody(part: any): string {
 }
 
 function extractBodyFromPayload(payload: any): string {
-    // Simple body
     if (payload.body?.data) {
         return Buffer.from(payload.body.data, 'base64url').toString('utf8');
     }
-    // Multipart
     if (payload.parts) {
         return decodeBody(payload);
     }
@@ -108,12 +104,8 @@ function parseMessage(msg: any): FetchedEmail {
 export function createGmailSyncService(repository: EmailRepository = createEmailRepository()) {
     return {
 
-        /**
-         * Lists message IDs from Gmail for a given label.
-         * Returns up to maxEmails IDs and a nextPageToken for pagination.
-         */
-        async resolveLabelId(labelName: string): Promise<string> {
-            const client = await getAuthenticatedClient();
+        async resolveLabelId(labelName: string, userId: string): Promise<string> {
+            const client = await getAuthenticatedClient(userId);
             const gmail  = google.gmail({ version: 'v1', auth: client });
 
             const res = await gmail.users.labels.list({ userId: 'me' });
@@ -129,13 +121,11 @@ export function createGmailSyncService(repository: EmailRepository = createEmail
             return match.id as string;
         },
 
-        async listMessageIds(options: SyncOptions = {}) {
+        async listMessageIds(options: SyncOptions, userId: string) {
             const { label = config.GMAIL_LABEL, query, maxEmails = 50, pageToken } = options;
-            const client = await getAuthenticatedClient();
+            const client = await getAuthenticatedClient(userId);
             const gmail  = google.gmail({ version: 'v1', auth: client });
 
-            // When a search query is provided use it directly (no label resolution needed).
-            // Otherwise fall back to label-based filtering.
             const listParams: any = {
                 userId:     'me',
                 maxResults: Math.min(maxEmails, 100),
@@ -145,7 +135,7 @@ export function createGmailSyncService(repository: EmailRepository = createEmail
             if (query) {
                 listParams.q = query;
             } else {
-                const labelId = await this.resolveLabelId(label);
+                const labelId = await this.resolveLabelId(label, userId);
                 listParams.labelIds = [labelId];
             }
 
@@ -161,11 +151,8 @@ export function createGmailSyncService(repository: EmailRepository = createEmail
             }
         },
 
-        /**
-         * Fetches a single message by ID (full format).
-         */
-        async fetchMessage(messageId: string): Promise<FetchedEmail> {
-            const client = await getAuthenticatedClient();
+        async fetchMessage(messageId: string, userId: string): Promise<FetchedEmail> {
+            const client = await getAuthenticatedClient(userId);
             const gmail  = google.gmail({ version: 'v1', auth: client });
 
             try {
@@ -180,35 +167,28 @@ export function createGmailSyncService(repository: EmailRepository = createEmail
             }
         },
 
-        /**
-         * Full sync: lists IDs, fetches each message, deduplicates via
-         * content_hash, and stores new emails to the repository.
-         */
-        async sync(options: SyncOptions = {}): Promise<SyncResult> {
+        async sync(options: SyncOptions, userId: string): Promise<SyncResult> {
             const { label = config.GMAIL_LABEL, maxEmails = 50 } = options;
 
-            logger.info('Gmail sync starting', { label, maxEmails });
+            logger.info('Gmail sync starting', { label, maxEmails, userId });
 
             const result: SyncResult = { fetched: 0, stored: 0, duplicates: 0, errors: 0 };
 
-            // 1. List message IDs
-            const { ids, nextPageToken } = await this.listMessageIds(options);
+            const { ids, nextPageToken } = await this.listMessageIds(options, userId);
             result.nextPageToken = nextPageToken;
 
             if (ids.length === 0) {
-                logger.info('Gmail sync: no messages found', { label });
+                logger.info('Gmail sync: no messages found', { label, userId });
                 return result;
             }
 
-            logger.info('Gmail sync: fetching messages', { count: ids.length, label });
+            logger.info('Gmail sync: fetching messages', { count: ids.length, userId });
 
-            // 2. Fetch each message and store — process sequentially to respect rate limits
             for (const id of ids) {
                 try {
-                    const email = await this.fetchMessage(id);
+                    const email = await this.fetchMessage(id, userId);
                     result.fetched++;
 
-                    // 3. Deduplicate via content_hash
                     const content_hash = hashEmail({
                         gmail_id:     email.gmail_id,
                         sender_email: email.sender_email,
@@ -217,16 +197,16 @@ export function createGmailSyncService(repository: EmailRepository = createEmail
                         body_raw:     email.body_raw,
                     });
 
-                    const existing = await repository.findByContentHash(content_hash);
+                    const existing = await repository.findByContentHash(content_hash, userId);
                     if (existing) {
                         result.duplicates++;
                         logger.debug('Duplicate email skipped', { gmail_id: id });
                         continue;
                     }
 
-                    // 4. Store to repository
                     await repository.create({
                         id:           crypto.randomUUID(),
+                        user_id:      userId,
                         gmail_id:     email.gmail_id,
                         thread_id:    email.thread_id,
                         content_hash,
@@ -241,24 +221,19 @@ export function createGmailSyncService(repository: EmailRepository = createEmail
                     });
 
                     result.stored++;
-                    logger.info('Email stored', { gmail_id: id, subject: email.subject });
-                    logger.debug('Email stored', { gmail_id: id, subject: email.subject });
+                    logger.debug('Email stored', { gmail_id: id, subject: email.subject, userId });
                 } catch (err: any) {
                     result.errors++;
                     logger.error('Failed to process email', { gmail_id: id, error: err.message });
                 }
             }
 
-            logger.info('Gmail sync complete', result);
+            logger.info('Gmail sync complete', { ...result, userId });
             return result;
         },
 
-        /**
-         * Returns all available labels for the authenticated account.
-         * Useful for letting the user pick a label in the UI.
-         */
-        async listLabels() {
-            const client = await getAuthenticatedClient();
+        async listLabels(userId: string) {
+            const client = await getAuthenticatedClient(userId);
             const gmail  = google.gmail({ version: 'v1', auth: client });
 
             try {

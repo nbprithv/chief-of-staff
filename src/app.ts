@@ -5,6 +5,7 @@ import cors from '@fastify/cors';
 import staticPlugin from '@fastify/static';
 import { logger } from './core/logger.js';
 import { errorHandler } from './core/middleware/error-handler.js';
+import { getUserId } from './core/session.js';
 import { loadTokens } from './integrations/google/token-store.js';
 
 // Initialise DB connection on startup
@@ -31,15 +32,20 @@ export async function buildApp(options: { publicDir?: string } = {}) {
     });
 
     // ── Auth-gated entry point ────────────────────────────────────────────────
-    app.get('/', async (_req, reply) => {
-        const tokens = await loadTokens();
+    app.get('/', async (req, reply) => {
+        const userId = getUserId(req);
+        if (!userId) return reply.redirect('/login');
+        const tokens = await loadTokens(userId);
         if (!tokens) return reply.redirect('/login');
         return reply.sendFile('index.html');
     });
 
-    app.get('/login', async (_req, reply) => {
-        const tokens = await loadTokens();
-        if (tokens) return reply.redirect('/');
+    app.get('/login', async (req, reply) => {
+        const userId = getUserId(req);
+        if (userId) {
+            const tokens = await loadTokens(userId);
+            if (tokens) return reply.redirect('/');
+        }
         return reply.sendFile('login.html');
     });
 

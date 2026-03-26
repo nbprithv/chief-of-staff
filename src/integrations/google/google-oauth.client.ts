@@ -54,7 +54,7 @@ export function getAuthorizationUrl(state: string): string {
     });
 }
 
-// ── Exchange code for tokens ───────────────────────────────────────────────────
+// ── Exchange code for tokens (does NOT persist — caller is responsible) ────────
 
 export async function exchangeCodeForTokens(code: string): Promise<TokenSet> {
     const client = createOAuthClient();
@@ -68,17 +68,13 @@ export async function exchangeCodeForTokens(code: string): Promise<TokenSet> {
             );
         }
 
-        const tokenSet: TokenSet = {
+        return {
             access_token:  tokens.access_token  ?? '',
             refresh_token: tokens.refresh_token,
             expiry_date:   tokens.expiry_date   ?? Date.now() + 3600 * 1000,
             token_type:    tokens.token_type    ?? 'Bearer',
             scope:         tokens.scope         ?? GMAIL_SCOPES.join(' '),
         };
-
-        await saveTokens(tokenSet);
-        logger.info('Google OAuth complete — tokens saved');
-        return tokenSet;
     } catch (err: any) {
         logger.error('Token exchange failed', { error: err.message });
         throw new ExternalServiceError('Google OAuth', err.message);
@@ -87,8 +83,8 @@ export async function exchangeCodeForTokens(code: string): Promise<TokenSet> {
 
 // ── Get an authenticated client (auto-refreshes if needed) ────────────────────
 
-export async function getAuthenticatedClient() {
-    const tokenSet = await loadTokens();
+export async function getAuthenticatedClient(userId: string) {
+    const tokenSet = await loadTokens(userId);
 
     if (!tokenSet) {
         throw new ExternalServiceError(
@@ -101,7 +97,7 @@ export async function getAuthenticatedClient() {
     client.setCredentials(tokenSet);
 
     if (isExpired(tokenSet)) {
-        logger.debug('Access token expired — refreshing');
+        logger.debug('Access token expired — refreshing', { userId });
         try {
             const { credentials } = await client.refreshAccessToken();
             const refreshed: TokenSet = {
@@ -111,11 +107,11 @@ export async function getAuthenticatedClient() {
                 token_type:    credentials.token_type    ?? 'Bearer',
                 scope:         credentials.scope         ?? tokenSet.scope,
             };
-            await saveTokens(refreshed);
+            await saveTokens(refreshed, userId);
             client.setCredentials(refreshed);
-            logger.debug('Access token refreshed');
+            logger.debug('Access token refreshed', { userId });
         } catch (err: any) {
-            logger.error('Token refresh failed', { error: err.message });
+            logger.error('Token refresh failed', { error: err.message, userId });
             throw new ExternalServiceError('Google OAuth', 'Token refresh failed. Re-authorize at /integrations/google/auth');
         }
     }
@@ -125,8 +121,8 @@ export async function getAuthenticatedClient() {
 
 // ── Get authenticated user info ────────────────────────────────────────────────
 
-export async function getConnectedUser() {
-    const client   = await getAuthenticatedClient();
+export async function getConnectedUser(userId: string) {
+    const client   = await getAuthenticatedClient(userId);
     const oauth2   = google.oauth2({ version: 'v2', auth: client });
     const { data } = await oauth2.userinfo.get();
     return { email: data.email, name: data.name, picture: data.picture };
@@ -134,8 +130,8 @@ export async function getConnectedUser() {
 
 // ── Disconnect ─────────────────────────────────────────────────────────────────
 
-export async function revokeAccess() {
-    const tokenSet = await loadTokens();
+export async function revokeAccess(userId: string) {
+    const tokenSet = await loadTokens(userId);
     if (tokenSet?.access_token) {
         const client = createOAuthClient();
         try {
@@ -144,6 +140,6 @@ export async function revokeAccess() {
             // Best-effort — still clear locally even if revocation fails
         }
     }
-    await clearTokens();
-    logger.info('Google access revoked');
+    await clearTokens(userId);
+    logger.info('Google access revoked', { userId });
 }

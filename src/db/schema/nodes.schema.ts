@@ -19,6 +19,7 @@ import { sql } from 'drizzle-orm';
 
 export const nodes = sqliteTable('nodes', {
   id:             text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  user_id:        text('user_id').notNull().default(''),
   parent_id:      text('parent_id'),                    // self-ref FK — applied via index below
   type:           text('type', {
                     enum: ['idea', 'project', 'todo', 'event', 'grocery_item', 'habit'],

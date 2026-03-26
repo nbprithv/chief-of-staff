@@ -1,7 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../../db/client.js';
 import { tokens } from '../../db/schema/tokens.schema.js';
-import { config } from '../../core/config.js';
 import { logger } from '../../core/logger.js';
 
 export interface TokenSet {
@@ -12,46 +11,37 @@ export interface TokenSet {
     scope:         string;
 }
 
-const TOKEN_KEY = 'google_oauth';
+function tokenKey(userId: string): string {
+    return `google_oauth:${userId}`;
+}
 
-/** Reads persisted tokens from the database. Falls back to GOOGLE_REFRESH_TOKEN env var. */
-export async function loadTokens(): Promise<TokenSet | null> {
+/** Reads persisted tokens for a specific user from the database. */
+export async function loadTokens(userId: string): Promise<TokenSet | null> {
     try {
-        const [row] = await db.select().from(tokens).where(eq(tokens.key, TOKEN_KEY));
+        const [row] = await db.select().from(tokens).where(eq(tokens.key, tokenKey(userId)));
         if (row) return JSON.parse(row.value) as TokenSet;
     } catch (err: any) {
         logger.warn('Failed to read tokens from DB', { error: err.message });
     }
-
-    // Bootstrap fallback from env — useful for initial setup
-    if (config.GOOGLE_REFRESH_TOKEN) {
-        return {
-            access_token:  '',
-            refresh_token: config.GOOGLE_REFRESH_TOKEN,
-            expiry_date:   0,
-            token_type:    'Bearer',
-            scope:         'https://www.googleapis.com/auth/gmail.readonly',
-        };
-    }
-
     return null;
 }
 
-/** Persists a token set to the database. */
-export async function saveTokens(tokenSet: TokenSet): Promise<void> {
+/** Persists a token set for a specific user. */
+export async function saveTokens(tokenSet: TokenSet, userId: string): Promise<void> {
+    const key = tokenKey(userId);
     await db.insert(tokens)
-        .values({ key: TOKEN_KEY, value: JSON.stringify(tokenSet) })
+        .values({ key, value: JSON.stringify(tokenSet) })
         .onConflictDoUpdate({
             target:  tokens.key,
             set:     { value: JSON.stringify(tokenSet), updated_at: new Date().toISOString() },
         });
-    logger.info('Google tokens saved to DB');
+    logger.info('Google tokens saved to DB', { userId });
 }
 
-/** Removes the stored token set. */
-export async function clearTokens(): Promise<void> {
-    await db.delete(tokens).where(eq(tokens.key, TOKEN_KEY));
-    logger.info('Google tokens cleared from DB');
+/** Removes the stored token set for a specific user. */
+export async function clearTokens(userId: string): Promise<void> {
+    await db.delete(tokens).where(eq(tokens.key, tokenKey(userId)));
+    logger.info('Google tokens cleared from DB', { userId });
 }
 
 /** Returns true if the access token is expired or expiring within 5 minutes. */

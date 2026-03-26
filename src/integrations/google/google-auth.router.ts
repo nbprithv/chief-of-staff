@@ -1,6 +1,8 @@
+import { google } from 'googleapis';
 import type { FastifyInstance } from 'fastify';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import {
+    createOAuthClient,
     getAuthorizationUrl,
     exchangeCodeForTokens,
     getConnectedUser,
@@ -10,13 +12,13 @@ import {
 } from './google-oauth.client.js';
 import { gmailSyncService } from './gmail-sync.service.js';
 import { calendarSyncService } from './calendar-sync.service.js';
-import { loadTokens } from './token-store.js';
+import { saveTokens, loadTokens } from './token-store.js';
 import { logger } from '../../core/logger.js';
 import { ExternalServiceError, AppError } from '../../core/errors.js';
-import { config } from '../../core/config.js';
 import { db } from '../../db/client.js';
 import { emails } from '../../db/schema/emails.schema.js';
 import { nodes } from '../../db/schema/nodes.schema.js';
+import { getUserId, setUserCookie, clearUserCookie } from '../../core/session.js';
 
 // In-memory store for pending state tokens (valid for 10 minutes)
 const pendingStates = new Map<string, number>();
@@ -26,7 +28,6 @@ const STATE_TTL_MS = 10 * 60 * 1000;
 export async function googleAuthRouter(app: FastifyInstance) {
 
     // ── GET /integrations/google/auth ─────────────────────────────────────────
-    // Initiates the OAuth flow. Redirects the browser to Google's consent page.
     app.get('/integrations/google/auth', async (req, reply) => {
         try {
             const state = generateOAuthState();
@@ -47,17 +48,14 @@ export async function googleAuthRouter(app: FastifyInstance) {
     });
 
     // ── GET /integrations/google/callback ─────────────────────────────────────
-    // Google redirects here after the user grants/denies consent.
     app.get('/integrations/google/callback', async (req, reply) => {
         const { code, state, error } = req.query as Record<string, string>;
 
-        // User denied access
         if (error) {
             logger.warn('Google OAuth denied by user', { error });
             return reply.redirect(`/login?auth=denied&reason=${encodeURIComponent(error)}`);
         }
 
-        // Validate state (CSRF check)
         if (!state || !verifyOAuthState(state)) {
             logger.warn('OAuth state mismatch — possible CSRF attempt');
             return reply.status(400).send({
@@ -65,7 +63,6 @@ export async function googleAuthRouter(app: FastifyInstance) {
             });
         }
 
-        // Check state hasn't expired
         const expiry = pendingStates.get(state);
         if (!expiry || Date.now() > expiry) {
             return reply.status(400).send({
@@ -81,30 +78,40 @@ export async function googleAuthRouter(app: FastifyInstance) {
         }
 
         try {
-            await exchangeCodeForTokens(code);
-            const user = await getConnectedUser();
-            logger.info('Google OAuth successful', { email: user.email });
+            // Exchange code → get token set (not yet saved)
+            const tokenSet = await exchangeCodeForTokens(code);
 
-            // Clear stale data then kick off a fresh background sync.
-            // We don't await so the browser redirect is instant.
-            db.delete(emails).returning();
-            db.delete(nodes).where(eq(nodes.type, 'event')).returning();
+            // Identify the user using the fresh tokens
+            const tempClient = createOAuthClient();
+            tempClient.setCredentials(tokenSet);
+            const oauth2   = google.oauth2({ version: 'v2', auth: tempClient });
+            const { data } = await oauth2.userinfo.get();
+            const userId   = data.email!;
+
+            // Save tokens keyed to this user, then set session cookie
+            await saveTokens(tokenSet, userId);
+            setUserCookie(reply, userId);
+
+            logger.info('Google OAuth successful', { userId });
+
+            // Clear only this user's stale data, then kick off a background sync
+            await db.delete(emails).where(eq(emails.user_id, userId));
+            await db.delete(nodes).where(and(eq(nodes.type, 'event'), eq(nodes.user_id, userId)));
 
             const timeMin = new Date(Date.now() - 30  * 24 * 60 * 60 * 1000).toISOString();
             const timeMax = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString();
-
             const DIGEST_QUERY = '(in:sent OR in:drafts) subject:"Galloway School Digest"';
 
             Promise.all([
-                gmailSyncService.sync({ query: DIGEST_QUERY, maxEmails: 100 }),
-                calendarSyncService.sync({ maxResults: 250, timeMin, timeMax }),
-            ]).then(([emails, cal]) => {
-                logger.info('Post-login sync complete', { emails, calendar: cal });
+                gmailSyncService.sync({ query: DIGEST_QUERY, maxEmails: 100 }, userId),
+                calendarSyncService.sync({ maxResults: 250, timeMin, timeMax }, userId),
+            ]).then(([emailRes, calRes]) => {
+                logger.info('Post-login sync complete', { emails: emailRes, calendar: calRes, userId });
             }).catch((err: any) => {
-                logger.error('Post-login sync failed', { error: err.message });
+                logger.error('Post-login sync failed', { error: err.message, userId });
             });
 
-            return reply.redirect(`/?auth=success&email=${encodeURIComponent(user.email ?? '')}`);
+            return reply.redirect(`/?auth=success&email=${encodeURIComponent(userId)}`);
         } catch (err: any) {
             logger.error('OAuth callback failed', { error: err.message });
             return reply.redirect(`/login?auth=error&reason=${encodeURIComponent(err.message)}`);
@@ -112,28 +119,26 @@ export async function googleAuthRouter(app: FastifyInstance) {
     });
 
     // ── GET /integrations/google/status ───────────────────────────────────────
-    // Returns the current connection state — called by the UI on load.
-    app.get('/integrations/google/status', async (_req, reply) => {
-        const tokens = loadTokens();
+    app.get('/integrations/google/status', async (req, reply) => {
+        const userId = getUserId(req);
+        if (!userId) return reply.send({ connected: false, user: null });
 
-        if (!tokens) {
-            return reply.send({ connected: false, user: null });
-        }
+        const tokenSet = await loadTokens(userId);
+        if (!tokenSet) return reply.send({ connected: false, user: null });
 
         try {
-            const user = await getConnectedUser();
+            const user = await getConnectedUser(userId);
             return reply.send({ connected: true, user });
         } catch {
-            // Tokens exist but are invalid (e.g. revoked externally)
             return reply.send({ connected: false, user: null, stale: true });
         }
     });
 
     // ── DELETE /integrations/google/disconnect ────────────────────────────────
-    // Revokes access and clears stored tokens. Returns JSON so the UI can
-    // redirect client-side to /login after sign-out.
-    app.delete('/integrations/google/disconnect', async (_req, reply) => {
-        await revokeAccess();
+    app.delete('/integrations/google/disconnect', async (req, reply) => {
+        const userId = getUserId(req);
+        if (userId) await revokeAccess(userId);
+        clearUserCookie(reply);
         return reply.send({ disconnected: true, redirect: '/login' });
     });
 }

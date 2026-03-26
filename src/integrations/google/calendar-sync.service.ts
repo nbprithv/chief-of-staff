@@ -64,11 +64,8 @@ function parseEvent(event: any): ParsedEvent {
 export function createCalendarSyncService(db = defaultDb) {
     return {
 
-        /**
-         * Lists all calendars on the authenticated account.
-         */
-        async listCalendars() {
-            const client   = await getAuthenticatedClient();
+        async listCalendars(userId: string) {
+            const client   = await getAuthenticatedClient(userId);
             const calendar = google.calendar({ version: 'v3', auth: client });
 
             try {
@@ -83,12 +80,9 @@ export function createCalendarSyncService(db = defaultDb) {
             }
         },
 
-        /**
-         * Fetches events from a calendar (defaults to 'primary').
-         */
-        async fetchEvents(options: CalendarSyncOptions = {}) {
+        async fetchEvents(options: CalendarSyncOptions, userId: string) {
             const { calendarId = 'primary', timeMin, timeMax, maxResults = 50, pageToken } = options;
-            const client   = await getAuthenticatedClient();
+            const client   = await getAuthenticatedClient(userId);
             const calendar = google.calendar({ version: 'v3', auth: client });
 
             try {
@@ -110,45 +104,38 @@ export function createCalendarSyncService(db = defaultDb) {
             }
         },
 
-        /**
-         * Finds an existing node by its Google Calendar event ID.
-         * Returns null if not found.
-         */
-        async findByGcalId(gcal_id: string): Promise<Node | null> {
+        async findByGcalId(gcal_id: string, userId: string): Promise<Node | null> {
             const [node] = await db
                 .select()
                 .from(nodes)
                 .where(and(
                     eq(nodes.type, 'event'),
+                    eq(nodes.user_id, userId),
                     sql`json_extract(${nodes.metadata}, '$.gcal_id') = ${gcal_id}`,
                 ));
             return node ?? null;
         },
 
-        /**
-         * Syncs Google Calendar events into the nodes table.
-         * Skips events already stored (dedup via gcal_id in metadata).
-         */
-        async sync(options: CalendarSyncOptions = {}): Promise<CalendarSyncResult> {
-            logger.info('Calendar sync starting', options);
+        async sync(options: CalendarSyncOptions, userId: string): Promise<CalendarSyncResult> {
+            logger.info('Calendar sync starting', { ...options, userId });
 
             const result: CalendarSyncResult = { fetched: 0, stored: 0, duplicates: 0, errors: 0 };
 
-            const { events, nextPageToken } = await this.fetchEvents(options);
+            const { events, nextPageToken } = await this.fetchEvents(options, userId);
             result.nextPageToken = nextPageToken;
 
             if (events.length === 0) {
-                logger.info('Calendar sync: no events found');
+                logger.info('Calendar sync: no events found', { userId });
                 return result;
             }
 
-            logger.info('Calendar sync: processing events', { count: events.length });
+            logger.info('Calendar sync: processing events', { count: events.length, userId });
 
             for (const event of events) {
                 try {
                     result.fetched++;
 
-                    const existing = await this.findByGcalId(event.gcal_id);
+                    const existing = await this.findByGcalId(event.gcal_id, userId);
                     if (existing) {
                         result.duplicates++;
                         logger.debug('Duplicate calendar event skipped', { gcal_id: event.gcal_id });
@@ -157,6 +144,7 @@ export function createCalendarSyncService(db = defaultDb) {
 
                     await db.insert(nodes).values({
                         id:          crypto.randomUUID(),
+                        user_id:     userId,
                         type:        'event',
                         title:       event.title,
                         description: event.description,
@@ -174,14 +162,14 @@ export function createCalendarSyncService(db = defaultDb) {
                     }).returning();
 
                     result.stored++;
-                    logger.debug('Calendar event stored', { gcal_id: event.gcal_id, title: event.title });
+                    logger.debug('Calendar event stored', { gcal_id: event.gcal_id, title: event.title, userId });
                 } catch (err: any) {
                     result.errors++;
                     logger.error('Failed to process calendar event', { gcal_id: event.gcal_id, error: err.message });
                 }
             }
 
-            logger.info('Calendar sync complete', result);
+            logger.info('Calendar sync complete', { ...result, userId });
             return result;
         },
     };

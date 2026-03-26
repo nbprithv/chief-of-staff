@@ -9,6 +9,7 @@ export function createEmailRepository(db: Db = defaultDb) {
     return {
 
         async findAll(filters?: {
+            userId?:       string;
             triaged?:      boolean;
             sender_email?: string;
             label?:        string;
@@ -17,13 +18,15 @@ export function createEmailRepository(db: Db = defaultDb) {
         }) {
             const conditions = [];
 
+            if (filters?.userId) {
+                conditions.push(eq(emails.user_id, filters.userId));
+            }
             if (filters?.triaged !== undefined) {
                 conditions.push(eq(emails.triaged, filters.triaged));
             }
             if (filters?.sender_email) {
                 conditions.push(eq(emails.sender_email, filters.sender_email));
             }
-            // Label filter — SQLite JSON array contains check
             if (filters?.label) {
                 conditions.push(
                     sql`json_each.value = ${filters.label}`,
@@ -39,43 +42,43 @@ export function createEmailRepository(db: Db = defaultDb) {
                 .offset(filters?.offset ?? 0);
         },
 
-        async findById(id: string) {
+        async findById(id: string, userId: string) {
             const [email] = await db
                 .select()
                 .from(emails)
-                .where(eq(emails.id, id));
+                .where(and(eq(emails.id, id), eq(emails.user_id, userId)));
             return email ?? null;
         },
 
-        async findByGmailId(gmail_id: string) {
+        async findByGmailId(gmail_id: string, userId: string) {
             const [email] = await db
                 .select()
                 .from(emails)
-                .where(eq(emails.gmail_id, gmail_id));
+                .where(and(eq(emails.gmail_id, gmail_id), eq(emails.user_id, userId)));
             return email ?? null;
         },
 
-        async findByContentHash(content_hash: string) {
+        async findByContentHash(content_hash: string, userId: string) {
             const [email] = await db
                 .select()
                 .from(emails)
-                .where(eq(emails.content_hash, content_hash));
+                .where(and(eq(emails.content_hash, content_hash), eq(emails.user_id, userId)));
             return email ?? null;
         },
 
-        async findByThreadId(thread_id: string) {
+        async findByThreadId(thread_id: string, userId: string) {
             return db
                 .select()
                 .from(emails)
-                .where(eq(emails.thread_id, thread_id))
+                .where(and(eq(emails.thread_id, thread_id), eq(emails.user_id, userId)))
                 .orderBy(desc(emails.received_at));
         },
 
-        async findUntriaged(limit = 50) {
+        async findUntriaged(userId: string, limit = 50) {
             return db
                 .select()
                 .from(emails)
-                .where(eq(emails.triaged, false))
+                .where(and(eq(emails.triaged, false), eq(emails.user_id, userId)))
                 .orderBy(desc(emails.received_at))
                 .limit(limit);
         },
@@ -88,28 +91,28 @@ export function createEmailRepository(db: Db = defaultDb) {
             return email;
         },
 
-        async update(id: string, data: Partial<Pick<NewEmail, 'body_summary' | 'labels' | 'triaged' | 'updated_at'>>) {
+        async update(id: string, userId: string, data: Partial<Pick<NewEmail, 'body_summary' | 'labels' | 'triaged' | 'updated_at'>>) {
             const [email] = await db
                 .update(emails)
                 .set({ ...data, updated_at: new Date().toISOString() })
-                .where(eq(emails.id, id))
+                .where(and(eq(emails.id, id), eq(emails.user_id, userId)))
                 .returning();
             return email ?? null;
         },
 
-        async delete(id: string) {
+        async delete(id: string, userId: string) {
             const [email] = await db
                 .delete(emails)
-                .where(eq(emails.id, id))
+                .where(and(eq(emails.id, id), eq(emails.user_id, userId)))
                 .returning();
             return email ?? null;
         },
 
-        async countUntriaged() {
+        async countUntriaged(userId: string) {
             const [result] = await db
                 .select({ count: sql<number>`count(*)` })
                 .from(emails)
-                .where(eq(emails.triaged, false));
+                .where(and(eq(emails.triaged, false), eq(emails.user_id, userId)));
             return result.count;
         },
     };

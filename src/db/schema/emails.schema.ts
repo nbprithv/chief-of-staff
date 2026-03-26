@@ -4,6 +4,7 @@ import { createHash } from 'crypto';
 
 export const emails = sqliteTable('emails', {
   id:           text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  user_id:      text('user_id').notNull().default(''),
   gmail_id:     text('gmail_id').notNull().unique(),
   thread_id:    text('thread_id'),
 
