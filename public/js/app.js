@@ -410,6 +410,7 @@ function openDigestModal(email) {
     }
 
     modal.classList.add('is-open');
+    document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
 }
 
@@ -417,6 +418,7 @@ function closeDigestModal() {
     const modal = document.getElementById('digest-modal');
     modal.classList.remove('is-open', 'html-mode');
     document.getElementById('modal-iframe').srcdoc = '';
+    document.documentElement.style.overflow = '';
     document.body.style.overflow = '';
 }
 
