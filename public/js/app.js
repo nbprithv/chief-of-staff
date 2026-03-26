@@ -385,8 +385,68 @@ function safeJson(str) {
 
 // ── Digest modal ───────────────────────────────────────────────────────────────
 
-function isHtmlEmail(body) {
-    return /<(html|body|div|p|table|span)\b/i.test(body || '');
+// Convert HTML email to readable DOM nodes, preserving <a> hyperlinks.
+function htmlToReadableNodes(html) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+
+    // Remove non-visible elements
+    tmp.querySelectorAll('style, script, head, meta, link, noscript').forEach(el => el.remove());
+
+    const frag = document.createDocumentFragment();
+
+    function walk(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            const text = node.textContent;
+            if (text) frag.appendChild(document.createTextNode(text));
+            return;
+        }
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+        const tag = node.tagName.toLowerCase();
+
+        if (tag === 'a') {
+            const href = node.getAttribute('href') || '';
+            const label = node.textContent.trim();
+            if (href && href.startsWith('http') && label && label !== href) {
+                frag.appendChild(document.createTextNode(label + ' '));
+                const link = document.createElement('a');
+                link.href = href;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.textContent = '↗';
+                link.className = 'modal-link';
+                frag.appendChild(link);
+            } else if (href && href.startsWith('http')) {
+                const link = document.createElement('a');
+                link.href = href;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.textContent = label || href;
+                link.className = 'modal-link';
+                frag.appendChild(link);
+            } else {
+                frag.appendChild(document.createTextNode(label));
+            }
+            return;
+        }
+
+        // Block-level tags → newline before/after
+        const block = ['p','div','tr','li','br','h1','h2','h3','h4','h5','h6','blockquote','hr','table','thead','tbody','section','article'].includes(tag);
+        if (block && frag.lastChild?.textContent?.slice(-1) !== '\n') {
+            frag.appendChild(document.createTextNode('\n'));
+        }
+        for (const child of node.childNodes) walk(child);
+        if (block) frag.appendChild(document.createTextNode('\n'));
+    }
+
+    for (const child of tmp.childNodes) walk(child);
+
+    // Collapse 3+ consecutive newlines to 2
+    const span = document.createElement('span');
+    span.appendChild(frag);
+    span.innerHTML = span.innerHTML.replace(/\n{3,}/g, '\n\n');
+    return span;
 }
 
 function openDigestModal(email) {
@@ -405,18 +465,18 @@ function openDigestModal(email) {
     }
     document.getElementById('modal-meta').textContent = parts.join('  ·  ');
 
-    const body   = email.body_raw || email.body_summary || '(no content)';
-    const modal  = document.getElementById('digest-modal');
-    const iframe = document.getElementById('modal-iframe');
+    const raw    = email.body_raw || email.body_summary || '(no content)';
+    const bodyEl = document.getElementById('modal-body');
+    const isHtml = /<(html|body|div|p|table|span|br)\b/i.test(raw);
 
-    if (isHtmlEmail(body)) {
-        iframe.srcdoc = body;
-        modal.classList.add('html-mode');
+    bodyEl.innerHTML = '';
+    if (isHtml) {
+        bodyEl.appendChild(htmlToReadableNodes(raw));
     } else {
-        document.getElementById('modal-body').textContent = body;
-        modal.classList.remove('html-mode');
+        bodyEl.textContent = raw;
     }
 
+    const modal = document.getElementById('digest-modal');
     modal.classList.add('is-open');
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
@@ -424,8 +484,8 @@ function openDigestModal(email) {
 
 function closeDigestModal() {
     const modal = document.getElementById('digest-modal');
-    modal.classList.remove('is-open', 'html-mode');
-    document.getElementById('modal-iframe').srcdoc = '';
+    modal.classList.remove('is-open');
+    document.getElementById('modal-body').innerHTML = '';
     document.documentElement.style.overflow = '';
     document.body.style.overflow = '';
 }
