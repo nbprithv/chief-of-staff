@@ -162,6 +162,7 @@ export function createCalendarSyncService(db = defaultDb) {
                         description: event.description,
                         starts_at:   event.starts_at,
                         ends_at:     event.ends_at,
+                        due_at:      event.starts_at,   // dashboard filters on due_at
                         location:    event.location,
                         status:      'active',
                         metadata:    JSON.stringify({

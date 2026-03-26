@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { eq } from 'drizzle-orm';
 import {
     getAuthorizationUrl,
     exchangeCodeForTokens,
@@ -7,10 +8,15 @@ import {
     generateOAuthState,
     verifyOAuthState,
 } from './google-oauth.client.js';
+import { gmailSyncService } from './gmail-sync.service.js';
+import { calendarSyncService } from './calendar-sync.service.js';
 import { loadTokens } from './token-store';
 import { logger } from '../../core/logger';
 import { ExternalServiceError, AppError } from '../../core/errors';
 import { config } from '../../core/config';
+import { db } from '../../db/client.js';
+import { emails } from '../../db/schema/emails.schema.js';
+import { nodes } from '../../db/schema/nodes.schema.js';
 
 // In-memory store for pending state tokens (valid for 10 minutes)
 const pendingStates = new Map<string, number>();
@@ -48,7 +54,7 @@ export async function googleAuthRouter(app: FastifyInstance) {
         // User denied access
         if (error) {
             logger.warn('Google OAuth denied by user', { error });
-            return reply.redirect(`/?auth=denied&reason=${encodeURIComponent(error)}`);
+            return reply.redirect(`/login?auth=denied&reason=${encodeURIComponent(error)}`);
         }
 
         // Validate state (CSRF check)
@@ -79,11 +85,29 @@ export async function googleAuthRouter(app: FastifyInstance) {
             const user = await getConnectedUser();
             logger.info('Google OAuth successful', { email: user.email });
 
-            // Redirect back to the UI with success indicator
+            // Clear stale data then kick off a fresh background sync.
+            // We don't await so the browser redirect is instant.
+            db.delete(emails).returning();
+            db.delete(nodes).where(eq(nodes.type, 'event')).returning();
+
+            const timeMin = new Date(Date.now() - 30  * 24 * 60 * 60 * 1000).toISOString();
+            const timeMax = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString();
+
+            const DIGEST_QUERY = '(in:sent OR in:drafts) subject:"Galloway School Digest"';
+
+            Promise.all([
+                gmailSyncService.sync({ query: DIGEST_QUERY, maxEmails: 100 }),
+                calendarSyncService.sync({ maxResults: 250, timeMin, timeMax }),
+            ]).then(([emails, cal]) => {
+                logger.info('Post-login sync complete', { emails, calendar: cal });
+            }).catch((err: any) => {
+                logger.error('Post-login sync failed', { error: err.message });
+            });
+
             return reply.redirect(`/?auth=success&email=${encodeURIComponent(user.email ?? '')}`);
         } catch (err: any) {
             logger.error('OAuth callback failed', { error: err.message });
-            return reply.redirect(`/?auth=error&reason=${encodeURIComponent(err.message)}`);
+            return reply.redirect(`/login?auth=error&reason=${encodeURIComponent(err.message)}`);
         }
     });
 
@@ -106,9 +130,10 @@ export async function googleAuthRouter(app: FastifyInstance) {
     });
 
     // ── DELETE /integrations/google/disconnect ────────────────────────────────
-    // Revokes access and clears stored tokens.
+    // Revokes access and clears stored tokens. Returns JSON so the UI can
+    // redirect client-side to /login after sign-out.
     app.delete('/integrations/google/disconnect', async (_req, reply) => {
         await revokeAccess();
-        return reply.send({ disconnected: true });
+        return reply.send({ disconnected: true, redirect: '/login' });
     });
 }

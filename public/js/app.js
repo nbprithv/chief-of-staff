@@ -1,232 +1,206 @@
 import { api } from './api.js';
 
+const DIGEST_QUERY = '(in:sent OR in:drafts) subject:"Galloway School Digest"';
+
 // ── Navigation ─────────────────────────────────────────────────────────────────
+
+function switchView(name) {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.querySelector(`.nav-item[data-view="${name}"]`)?.classList.add('active');
+    document.getElementById(`view-${name}`)?.classList.add('active');
+    if (name === 'digests')  loadDigests();
+    if (name === 'calendar') loadCalendar();
+}
 
 function initNav() {
     document.querySelectorAll('.nav-item[data-view]').forEach(item => {
-        item.addEventListener('click', () => {
-            const view = item.dataset.view;
-
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            item.classList.add('active');
-
-            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-            const target = document.getElementById(`view-${view}`);
-            if (target) target.classList.add('active');
-
-            // Lazy-load view data on first visit
-            if (view === 'inbox')    loadInbox();
-            if (view === 'calendar') loadCalendarView();
-        });
+        item.addEventListener('click', () => switchView(item.dataset.view));
     });
+    document.getElementById('dash-cal-link')?.addEventListener('click',     () => switchView('calendar'));
+    document.getElementById('dash-digests-link')?.addEventListener('click', () => switchView('digests'));
 }
 
-// ── Status bar ─────────────────────────────────────────────────────────────────
-
-async function refreshStatus() {
-    try {
-        await api.health();
-        setStatus('db', 'ok', 'DB');
-    } catch {
-        setStatus('db', 'error', 'DB error');
-    }
-
-    try {
-        const { connected, user } = await api.gmailStatus();
-        if (connected) {
-            setStatus('google', 'synced', user?.email ?? 'Google connected');
-            document.getElementById('sync-btn')?.removeAttribute('disabled');
-            document.getElementById('sync-gmail-btn')?.removeAttribute('disabled');
-            document.getElementById('sync-calendar-btn')?.removeAttribute('disabled');
-            updateSettingsBlock(true, user);
-        } else {
-            setStatus('google', 'warn', 'Google not connected');
-            updateSettingsBlock(false, null);
-        }
-    } catch {
-        setStatus('google', 'warn', 'Google not connected');
-        updateSettingsBlock(false, null);
-    }
-
-    try {
-        const { count } = await api.emailUntriaged();
-        if (count > 0) {
-            setStatus('triage', 'warn', `${count} unread`);
-            updateBadge('nav-inbox', count);
-        } else {
-            removeStatus('triage');
-        }
-    } catch { /* ignore */ }
-}
-
-function updateSettingsBlock(connected, user) {
-    const el = document.getElementById('google-status-block');
-    if (!el) return;
-    if (connected && user) {
-        el.innerHTML = `<span style="color:var(--green);font-weight:500">● Connected</span> as ${user.email}`;
-    } else {
-        el.textContent = 'Not connected. Click below to authorize Gmail and Calendar access.';
-    }
-}
-
-function setStatus(id, type, text) {
-    const bar = document.getElementById('status-bar');
-    if (!bar) return;
-    let el = document.getElementById(`status-${id}`);
-    if (!el) {
-        el = document.createElement('span');
-        el.id = `status-${id}`;
-        el.className = 'status-pill';
-        bar.appendChild(el);
-    }
-    el.className = `status-pill status-${type}`;
-    el.textContent = text;
-}
-
-function removeStatus(id) {
-    document.getElementById(`status-${id}`)?.remove();
-}
-
-function updateBadge(navId, count) {
-    const item = document.getElementById(navId);
-    if (!item) return;
-    let badge = item.querySelector('.nav-badge');
-    if (!badge) {
-        badge = document.createElement('span');
-        badge.className = 'nav-badge';
-        item.appendChild(badge);
-    }
-    badge.textContent = count;
-}
-
-// ── Masthead date ──────────────────────────────────────────────────────────────
+// ── Masthead ───────────────────────────────────────────────────────────────────
 
 function setMastheadDate() {
     const el = document.getElementById('masthead-date');
-    if (!el) return;
-    el.textContent = new Date().toLocaleDateString('en-US', {
+    if (el) el.textContent = new Date().toLocaleDateString('en-US', {
         weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
     });
 }
 
-// ── Week strip (right panel) ───────────────────────────────────────────────────
-
-function buildWeekStrip() {
-    const strip = document.getElementById('week-strip');
-    if (!strip) return;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Find Monday of current week
-    const monday = new Date(today);
-    const dow = today.getDay(); // 0=Sun
-    const offset = dow === 0 ? -6 : 1 - dow;
-    monday.setDate(today.getDate() + offset);
-
-    const dayNames = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-    let html = '';
-
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(monday);
-        d.setDate(monday.getDate() + i);
-        const isToday   = d.getTime() === today.getTime();
-        const isWeekend = i >= 5;
-        const cls = ['cal-day', isToday ? 'today' : '', isWeekend ? 'weekend' : ''].filter(Boolean).join(' ');
-        html += `<div class="${cls}">
-            <div class="cal-day-name">${dayNames[i]}</div>
-            <div class="cal-day-num">${d.getDate()}</div>
-        </div>`;
-    }
-
-    strip.innerHTML = html;
-}
-
-// ── Dashboard data ─────────────────────────────────────────────────────────────
-
-async function loadDashboard() {
-    await Promise.all([
-        loadTodayEvents(),
-        loadInboxPreview(),
-    ]);
-}
-
-async function loadTodayEvents() {
-    const container = document.getElementById('today-events-list');
-    const countEl   = document.getElementById('today-events-count');
-    if (!container) return;
-
+async function loadUser() {
     try {
-        const { nodes = [] } = await api.nodes({ type: 'event' });
+        const { connected, user } = await api.gmailStatus();
+        const el = document.getElementById('masthead-user');
+        if (el && connected && user?.email) el.textContent = user.email;
+        const block = document.getElementById('google-status-block');
+        if (block) {
+            block.innerHTML = connected && user
+                ? `<span style="color:var(--green);font-weight:500">● Connected</span> as ${escHtml(user.email)}`
+                : 'Not connected.';
+        }
+    } catch { /* ignore */ }
+}
 
+// ── Metrics ────────────────────────────────────────────────────────────────────
+
+async function loadMetrics() {
+    // Calendar counts
+    try {
+        const { nodes = [] } = await api.nodes({ type: 'event', limit: 500 });
         const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
         const todayEnd   = new Date(); todayEnd.setHours(23, 59, 59, 999);
+        const weekEnd    = new Date(todayStart); weekEnd.setDate(todayStart.getDate() + 7);
 
-        const todayEvents = nodes.filter(n => {
+        const todayCount = nodes.filter(n => {
             const t = n.due_at ? new Date(n.due_at) : null;
             return t && t >= todayStart && t <= todayEnd;
-        }).sort((a, b) => new Date(a.due_at) - new Date(b.due_at));
+        }).length;
 
-        if (countEl) countEl.textContent = `${todayEvents.length} event${todayEvents.length !== 1 ? 's' : ''}`;
+        const weekCount = nodes.filter(n => {
+            const t = n.due_at ? new Date(n.due_at) : null;
+            return t && t >= todayStart && t < weekEnd;
+        }).length;
 
-        if (todayEvents.length === 0) {
-            container.innerHTML = emptyState('No events today');
-            return;
-        }
-
-        container.innerHTML = todayEvents.map(renderEventRow).join('');
-        updateUpcomingPanel(nodes);
+        document.getElementById('m-today').textContent = todayCount;
+        document.getElementById('m-week').textContent  = weekCount;
     } catch {
-        container.innerHTML = emptyState('Could not load events');
+        document.getElementById('m-today').textContent = '—';
+        document.getElementById('m-week').textContent  = '—';
     }
+
+    // Digest count
+    try {
+        const { emails = [] } = await api.emails({ limit: 500 });
+        document.getElementById('m-digests').textContent = emails.length;
+        const badge = document.getElementById('badge-digests');
+        if (badge) badge.textContent = emails.length > 0 ? emails.length : '';
+    } catch {
+        document.getElementById('m-digests').textContent = '—';
+    }
+
+    // Last sync (stored in localStorage)
+    const lastSync = localStorage.getItem('lastSync');
+    const syncEl = document.getElementById('m-sync');
+    if (syncEl) syncEl.textContent = lastSync ? relativeTime(new Date(lastSync)) : 'never';
 }
 
-async function loadInboxPreview() {
-    const container = document.getElementById('inbox-preview-list');
-    const countEl   = document.getElementById('inbox-preview-count');
+function relativeTime(date) {
+    const mins = Math.floor((Date.now() - date.getTime()) / 60000);
+    if (mins < 1)  return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24)  return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────────────
+
+async function loadDashboard() {
+    await Promise.all([loadSchedule(), loadRecentDigests()]);
+}
+
+async function loadSchedule() {
+    const container = document.getElementById('dash-schedule');
     if (!container) return;
 
     try {
-        const { emails = [] } = await api.emails({ limit: 5 });
+        const { nodes = [] } = await api.nodes({ type: 'event', limit: 500 });
 
-        if (countEl) countEl.textContent = `${emails.length} recent`;
+        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+        const cutoff     = new Date(todayStart); cutoff.setDate(todayStart.getDate() + 14);
+        const tomorrow   = new Date(todayStart); tomorrow.setDate(todayStart.getDate() + 1);
+
+        const upcoming = nodes
+            .filter(n => n.due_at && new Date(n.due_at) >= todayStart && new Date(n.due_at) < cutoff)
+            .sort((a, b) => new Date(a.due_at) - new Date(b.due_at));
+
+        if (upcoming.length === 0) {
+            container.innerHTML = emptyState('No events in the next 14 days');
+            return;
+        }
+
+        // Group by day
+        const groups = new Map();
+        for (const n of upcoming) {
+            const d = new Date(n.due_at); d.setHours(0, 0, 0, 0);
+            let label;
+            if (d.getTime() === todayStart.getTime())  label = 'Today';
+            else if (d.getTime() === tomorrow.getTime()) label = 'Tomorrow';
+            else label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+            if (!groups.has(label)) groups.set(label, []);
+            groups.get(label).push(n);
+        }
+
+        let html = '';
+        for (const [label, events] of groups) {
+            const isToday = label === 'Today';
+            html += `<div class="date-group-label${isToday ? ' today-label' : ''}">${label}</div>`;
+            html += events.map(n => {
+                const meta = safeJson(n.metadata);
+                const timeStr = meta.all_day
+                    ? 'all day'
+                    : new Date(n.due_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                return `<div class="event-item">
+                    <div class="event-time">${timeStr}</div>
+                    <div>
+                        <div class="event-name">${escHtml(n.title)}</div>
+                        ${n.location ? `<div class="event-loc">${escHtml(n.location)}</div>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        container.innerHTML = html;
+    } catch {
+        container.innerHTML = emptyState('Could not load schedule');
+    }
+}
+
+async function loadRecentDigests() {
+    const container = document.getElementById('dash-digests');
+    if (!container) return;
+
+    try {
+        const { emails = [] } = await api.emails({ limit: 8 });
 
         if (emails.length === 0) {
-            container.innerHTML = emptyState('No emails — sync Gmail to load');
+            container.innerHTML = emptyState('No digests — sync to load');
+            return;
+        }
+
+        container.innerHTML = emails.map(renderDigestRow).join('');
+    } catch {
+        container.innerHTML = emptyState('Could not load digests');
+    }
+}
+
+// ── Digests view ───────────────────────────────────────────────────────────────
+
+let digestsLoaded = false;
+
+async function loadDigests() {
+    if (digestsLoaded) return;
+    digestsLoaded = true;
+
+    const container = document.getElementById('digests-list');
+    const countEl   = document.getElementById('digests-count');
+    if (!container) return;
+
+    try {
+        const { emails = [] } = await api.emails({ limit: 500 });
+
+        if (countEl) countEl.textContent = `${emails.length} digest${emails.length !== 1 ? 's' : ''}`;
+
+        if (emails.length === 0) {
+            container.innerHTML = emptyState('No digests — click Sync to fetch');
             return;
         }
 
         container.innerHTML = emails.map(renderEmailRow).join('');
     } catch {
-        container.innerHTML = emptyState('Could not load emails');
-    }
-}
-
-// ── Inbox view ─────────────────────────────────────────────────────────────────
-
-let inboxLoaded = false;
-
-async function loadInbox() {
-    if (inboxLoaded) return;
-    inboxLoaded = true;
-
-    const container = document.getElementById('inbox-full-list');
-    const countEl   = document.getElementById('inbox-full-count');
-    if (!container) return;
-
-    try {
-        const { emails = [] } = await api.emails({ limit: 100 });
-
-        if (countEl) countEl.textContent = `${emails.length} email${emails.length !== 1 ? 's' : ''}`;
-
-        if (emails.length === 0) {
-            container.innerHTML = emptyState('No emails — click Sync Gmail to fetch');
-            return;
-        }
-
-        container.innerHTML = emails.map(renderEmailRow).join('');
-    } catch {
-        container.innerHTML = emptyState('Could not load emails');
+        container.innerHTML = emptyState('Could not load digests');
     }
 }
 
@@ -234,42 +208,55 @@ async function loadInbox() {
 
 let calendarLoaded = false;
 
-async function loadCalendarView() {
+async function loadCalendar() {
     if (calendarLoaded) return;
     calendarLoaded = true;
 
-    const container = document.getElementById('calendar-events-list');
-    const countEl   = document.getElementById('calendar-events-count');
+    const container = document.getElementById('calendar-list');
+    const countEl   = document.getElementById('calendar-count');
     if (!container) return;
 
     try {
-        const { nodes = [] } = await api.nodes({ type: 'event' });
+        const { nodes = [] } = await api.nodes({ type: 'event', limit: 500 });
 
+        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
         const upcoming = nodes
-            .filter(n => n.due_at && new Date(n.due_at) >= new Date(new Date().setHours(0,0,0,0)))
+            .filter(n => n.due_at && new Date(n.due_at) >= todayStart)
             .sort((a, b) => new Date(a.due_at) - new Date(b.due_at));
 
         if (countEl) countEl.textContent = `${upcoming.length} upcoming`;
 
         if (upcoming.length === 0) {
-            container.innerHTML = emptyState('No events — click Sync Calendar to fetch');
+            container.innerHTML = emptyState('No events — click Sync to fetch');
             return;
         }
 
-        // Group by date
-        const grouped = {};
-        for (const node of upcoming) {
-            const dateKey = new Date(node.due_at).toLocaleDateString('en-US', {
+        const grouped = new Map();
+        for (const n of upcoming) {
+            const key = new Date(n.due_at).toLocaleDateString('en-US', {
                 weekday: 'long', month: 'long', day: 'numeric',
             });
-            if (!grouped[dateKey]) grouped[dateKey] = [];
-            grouped[dateKey].push(node);
+            if (!grouped.has(key)) grouped.set(key, []);
+            grouped.get(key).push(n);
         }
 
         let html = '';
-        for (const [date, events] of Object.entries(grouped)) {
+        for (const [date, events] of grouped) {
             html += `<div class="date-group-label">${date}</div>`;
-            html += events.map(renderEventRow).join('');
+            html += events.map(n => {
+                const meta    = safeJson(n.metadata);
+                const timeStr = meta.all_day
+                    ? 'all day'
+                    : new Date(n.due_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                return `<div class="event-item">
+                    <div class="event-time">${timeStr}</div>
+                    <div>
+                        <div class="event-name">${escHtml(n.title)}</div>
+                        ${n.location    ? `<div class="event-loc">${escHtml(n.location)}</div>` : ''}
+                        ${n.description ? `<div class="event-loc">${escHtml(n.description.slice(0, 80))}</div>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
         }
         container.innerHTML = html;
     } catch {
@@ -277,63 +264,32 @@ async function loadCalendarView() {
     }
 }
 
-// ── Upcoming events panel (right sidebar) ─────────────────────────────────────
-
-function updateUpcomingPanel(allNodes) {
-    const container = document.getElementById('upcoming-events-panel');
-    if (!container) return;
-
-    const now     = new Date();
-    const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
-
-    const upcoming = allNodes
-        .filter(n => n.due_at && new Date(n.due_at) >= now && new Date(n.due_at) <= weekEnd)
-        .sort((a, b) => new Date(a.due_at) - new Date(b.due_at))
-        .slice(0, 5);
-
-    if (upcoming.length === 0) {
-        container.innerHTML = '';
-        return;
-    }
-
-    container.innerHTML = upcoming.map(n => {
-        const d = new Date(n.due_at);
-        const isToday = d.toDateString() === now.toDateString();
-        const timeStr = isToday
-            ? d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-            : d.toLocaleDateString('en-US', { weekday: 'short' });
-        return `<div class="event-item">
-            <div class="event-time">${timeStr}</div>
-            <div>
-                <div class="event-name">${escHtml(n.title)}</div>
-                ${n.description ? `<div class="event-loc">${escHtml(n.description.slice(0, 60))}</div>` : ''}
-            </div>
-        </div>`;
-    }).join('');
-}
-
-// ── Sync button ────────────────────────────────────────────────────────────────
+// ── Sync ───────────────────────────────────────────────────────────────────────
 
 function initSyncButtons() {
     document.getElementById('sync-btn')?.addEventListener('click', syncAll);
-    document.getElementById('sync-gmail-btn')?.addEventListener('click', async () => {
-        setSyncing('sync-gmail-btn', true);
+
+    document.getElementById('sync-digests-btn')?.addEventListener('click', async () => {
+        const btn = document.getElementById('sync-digests-btn');
+        if (btn) { btn.textContent = '↻ Syncing…'; btn.disabled = true; }
         try {
-            await api.gmailSync({});
-            inboxLoaded = false;
-            loadInbox();
+            await api.gmailSync({ query: DIGEST_QUERY, max_emails: 100 });
+            digestsLoaded = false;
+            await Promise.all([loadDigests(), loadMetrics()]);
         } finally {
-            setSyncing('sync-gmail-btn', false);
+            if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
         }
     });
+
     document.getElementById('sync-calendar-btn')?.addEventListener('click', async () => {
-        setSyncing('sync-calendar-btn', true);
+        const btn = document.getElementById('sync-calendar-btn');
+        if (btn) { btn.textContent = '↻ Syncing…'; btn.disabled = true; }
         try {
             await api.calendarSync({});
             calendarLoaded = false;
-            loadCalendarView();
+            await Promise.all([loadCalendar(), loadMetrics()]);
         } finally {
-            setSyncing('sync-calendar-btn', false);
+            if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
         }
     });
 }
@@ -344,74 +300,63 @@ async function syncAll() {
 
     try {
         await Promise.all([
-            api.gmailSync({}).catch(() => {}),
+            api.gmailSync({ query: DIGEST_QUERY, max_emails: 100 }).catch(() => {}),
             api.calendarSync({}).catch(() => {}),
         ]);
-        // Refresh dashboard data
-        inboxLoaded = false;
+        localStorage.setItem('lastSync', new Date().toISOString());
+
+        digestsLoaded  = false;
         calendarLoaded = false;
-        await loadDashboard();
-        // Refresh untriaged count
-        await refreshStatus();
+        await Promise.all([loadMetrics(), loadDashboard()]);
     } finally {
-        if (btn) { btn.textContent = '↻ Sync now'; btn.disabled = false; }
+        if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
     }
 }
 
-function setSyncing(btnId, syncing) {
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
-    btn.textContent = syncing ? '↻ Syncing…' : (btnId === 'sync-gmail-btn' ? '↻ Sync Gmail' : '↻ Sync Calendar');
-    btn.disabled = syncing;
+// ── Sign out ───────────────────────────────────────────────────────────────────
+
+function initSignOut() {
+    document.getElementById('signout-btn')?.addEventListener('click', async () => {
+        try {
+            const res  = await fetch('/integrations/google/disconnect', { method: 'DELETE' });
+            const data = await res.json();
+            window.location.href = data.redirect ?? '/login';
+        } catch {
+            window.location.href = '/login';
+        }
+    });
 }
 
 // ── Render helpers ─────────────────────────────────────────────────────────────
 
-function renderEventRow(node) {
-    const d = node.due_at ? new Date(node.due_at) : null;
-    const timeStr = d
-        ? d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+function renderDigestRow(email) {
+    const date = email.received_at
+        ? new Date(email.received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
         : '';
-    return `<div class="event-item">
-        <div class="event-time">${timeStr}</div>
-        <div>
-            <div class="event-name">${escHtml(node.title)}</div>
-            ${node.description ? `<div class="event-loc">${escHtml(node.description.slice(0, 80))}</div>` : ''}
-        </div>
+    return `<div class="digest-row">
+        <div class="digest-date">${date}</div>
+        <div class="digest-subject">${escHtml(email.subject || '(no subject)')}</div>
     </div>`;
 }
 
 function renderEmailRow(email) {
-    const isUnread = !email.triaged;
-    const cls = `email-row${isUnread ? ' unread' : ''}`;
-    const time = email.received_at
-        ? formatEmailTime(new Date(email.received_at))
+    const date = email.received_at
+        ? new Date(email.received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
         : '';
-    const sender = email.sender_name || email.sender_email || 'Unknown';
     const preview = email.body_raw
-        ? email.body_raw.replace(/\s+/g, ' ').slice(0, 120)
+        ? email.body_raw.replace(/\s+/g, ' ').trim().slice(0, 100)
         : '';
-    return `<div class="${cls}">
+    return `<div class="email-row">
         <div>
-            <div class="email-from">${escHtml(sender)}</div>
             <div class="email-subject">${escHtml(email.subject || '(no subject)')}</div>
             ${preview ? `<div class="email-preview">${escHtml(preview)}</div>` : ''}
         </div>
-        <div class="email-meta">${time}</div>
+        <div class="email-meta">${date}</div>
     </div>`;
 }
 
-function formatEmailTime(date) {
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-    if (isToday) {
-        return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    }
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
 function emptyState(msg) {
-    return `<div style="padding:28px 0;text-align:center;font-family:var(--mono);font-size:12px;color:var(--ink4)">${msg}</div>`;
+    return `<div style="padding:32px 0;text-align:center;font-family:var(--mono);font-size:11px;color:var(--ink4)">${msg}</div>`;
 }
 
 function escHtml(str) {
@@ -422,16 +367,21 @@ function escHtml(str) {
         .replace(/"/g, '&quot;');
 }
 
+function safeJson(str) {
+    try { return JSON.parse(str || '{}'); } catch { return {}; }
+}
+
 // ── Boot ───────────────────────────────────────────────────────────────────────
 
 async function boot() {
     setMastheadDate();
-    buildWeekStrip();
     initNav();
     initSyncButtons();
+    initSignOut();
 
     await Promise.all([
-        refreshStatus(),
+        loadUser(),
+        loadMetrics(),
         loadDashboard(),
     ]);
 }

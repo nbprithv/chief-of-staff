@@ -12,6 +12,7 @@ export function createGmailSyncRouter(service: GmailSyncService = defaultService
         app.post('/integrations/google/sync', async (req, reply) => {
             const schema = z.object({
                 label:      z.string().default(config.GMAIL_LABEL),
+                query:      z.string().optional(),
                 max_emails: z.number().int().positive().max(100).default(50),
             });
             const parsed = schema.safeParse(req.body ?? {});
@@ -19,6 +20,7 @@ export function createGmailSyncRouter(service: GmailSyncService = defaultService
 
             const result = await service.sync({
                 label:     parsed.data.label,
+                query:     parsed.data.query,
                 maxEmails: parsed.data.max_emails,
             });
 

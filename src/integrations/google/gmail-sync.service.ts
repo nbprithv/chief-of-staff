@@ -9,6 +9,7 @@ import type { EmailRepository } from '../../domains/email/email.repository.js';
 
 export interface SyncOptions {
     label?:     string;   // Gmail label — defaults to 'INBOX'
+    query?:     string;   // Gmail search query (overrides label when set)
     maxEmails?: number;   // max to fetch — defaults to 50
     pageToken?: string;   // for pagination
 }
@@ -129,19 +130,27 @@ export function createGmailSyncService(repository: EmailRepository = createEmail
         },
 
         async listMessageIds(options: SyncOptions = {}) {
-            const { label = config.GMAIL_LABEL, maxEmails = 50, pageToken } = options;
+            const { label = config.GMAIL_LABEL, query, maxEmails = 50, pageToken } = options;
             const client = await getAuthenticatedClient();
             const gmail  = google.gmail({ version: 'v1', auth: client });
 
-            const labelId = await this.resolveLabelId(label);
+            // When a search query is provided use it directly (no label resolution needed).
+            // Otherwise fall back to label-based filtering.
+            const listParams: any = {
+                userId:     'me',
+                maxResults: Math.min(maxEmails, 100),
+                pageToken,
+            };
+
+            if (query) {
+                listParams.q = query;
+            } else {
+                const labelId = await this.resolveLabelId(label);
+                listParams.labelIds = [labelId];
+            }
 
             try {
-                const res = await gmail.users.messages.list({
-                    userId:    'me',
-                    labelIds:  [labelId],
-                    maxResults: Math.min(maxEmails, 100),
-                    pageToken,
-                });
+                const res = await gmail.users.messages.list(listParams);
 
                 return {
                     ids:           (res.data.messages ?? []).map((m: any) => m.id as string),

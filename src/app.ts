@@ -8,6 +8,7 @@ import { config } from './core/config.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { logger } from './core/logger.js';
 import { errorHandler } from './core/middleware/error-handler.js';
+import { loadTokens } from './integrations/google/token-store.js';
 
 // Initialise DB connection on startup
 import './db/client.js';
@@ -27,6 +28,25 @@ async function bootstrap() {
   await app.register(staticPlugin, {
     root: path.join(__dirname, '../public'),
     prefix: '/',
+  });
+
+  // ── Auth-gated entry point ────────────────────────────────────────────────
+  // Redirect to /login if no Google tokens are stored yet.
+  app.get('/', async (_req, reply) => {
+    const tokens = loadTokens();
+    if (!tokens) {
+      return reply.redirect('/login');
+    }
+    return reply.sendFile('index.html');
+  });
+
+  // /login — show the login page, or redirect to / if already authenticated.
+  app.get('/login', async (_req, reply) => {
+    const tokens = loadTokens();
+    if (tokens) {
+      return reply.redirect('/');
+    }
+    return reply.sendFile('login.html');
   });
 
   app.get('/health', async (_req, reply) => {
