@@ -28,7 +28,7 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
 
 .app {
     display: grid;
-    grid-template-columns: 220px 1fr 300px;
+    grid-template-columns: 200px 1fr;
     grid-template-rows: 52px 1fr;
     height: 100vh;
     overflow: hidden;
@@ -455,6 +455,30 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
 .event-name { font-size: 12px; font-weight: 500; color: var(--ink); }
 .event-loc  { font-size: 11px; color: var(--ink3); margin-top: 1px; }
 
+/* ── Date group label ───────────────────────────────────────────────────────── */
+
+.date-group-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink4);
+    padding: 14px 0 6px;
+}
+
+.date-group-label:first-child { padding-top: 0; }
+
+/* ── Placeholder loading row ─────────────────────────────────────────────────── */
+
+.placeholder-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 0;
+    color: var(--ink4);
+}
+
 /* ── Grocery + habit rows ───────────────────────────────────────────────────── */
 
 .simple-row {
@@ -535,3 +559,119 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
 .email-row:nth-child(1) { animation-delay: 0.03s }
 .email-row:nth-child(2) { animation-delay: 0.06s }
 .email-row:nth-child(3) { animation-delay: 0.09s }
+
+/* ── Masthead additions ──────────────────────────────────────────────────────── */
+
+.masthead-user {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #555;
+    letter-spacing: 0.02em;
+}
+
+.masthead-sync-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 14px;
+    background: transparent;
+    color: #888;
+    border: 1px solid #333;
+    border-radius: 2px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    transition: all 0.15s;
+}
+
+.masthead-sync-btn:hover    { border-color: var(--accent2); color: var(--accent2); }
+.masthead-sync-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ── Metric strip ────────────────────────────────────────────────────────────── */
+
+.metric-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    margin-bottom: 32px;
+    overflow: hidden;
+}
+
+.metric-card {
+    background: var(--paper2);
+    padding: 18px 22px;
+}
+
+.metric-value {
+    font-family: var(--serif);
+    font-size: 38px;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1;
+    margin-bottom: 7px;
+}
+
+.metric-value--ts {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--ink2);
+    padding-top: 10px;
+    margin-bottom: 9px;
+}
+
+.metric-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink4);
+}
+
+/* ── Dashboard two-column grid ───────────────────────────────────────────────── */
+
+.dash-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    align-items: start;
+}
+
+/* ── Digest rows ─────────────────────────────────────────────────────────────── */
+
+.digest-row {
+    display: flex;
+    gap: 14px;
+    align-items: baseline;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--rule);
+    cursor: default;
+    transition: background 0.1s;
+}
+
+.digest-row:last-child { border-bottom: none; }
+
+.digest-date {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink4);
+    white-space: nowrap;
+    flex-shrink: 0;
+    width: 46px;
+}
+
+.digest-subject {
+    font-size: 12px;
+    color: var(--ink2);
+    line-height: 1.45;
+}
+
+/* ── Today group label highlight ─────────────────────────────────────────────── */
+
+.date-group-label.today-label {
+    color: var(--accent);
+}

@@ -5,12 +5,12 @@ const schema = z.object({
   PORT:               z.coerce.number().default(3000),
   NODE_ENV:           z.enum(['development', 'production', 'test']).default('development'),
   DB_PATH:            z.string().default('./data/assistant.db'),
-  ANTHROPIC_API_KEY:  z.string().startsWith('sk-ant-'),
   SESSION_SECRET:     z.string().default('dev-secret-change-in-production'),
   GOOGLE_CLIENT_ID:      z.string().optional(),
   GOOGLE_CLIENT_SECRET:  z.string().optional(),
   GOOGLE_REDIRECT_URI:   z.string().url().optional(),
   GOOGLE_REFRESH_TOKEN:  z.string().optional(),
+  GMAIL_LABEL:           z.string().default('INBOX'),
 });
 
 const parsed = schema.safeParse(process.env);

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { gmailSyncService as defaultService } from './gmail-sync.service.js';
 import { ValidationError } from '../../core/errors.js';
+import { config } from '../../core/config.js';
 import type { GmailSyncService } from './gmail-sync.service.js';
 
 export function createGmailSyncRouter(service: GmailSyncService = defaultService) {
@@ -10,7 +11,8 @@ export function createGmailSyncRouter(service: GmailSyncService = defaultService
         // ── POST /integrations/google/sync ──────────────────────────────────────
         app.post('/integrations/google/sync', async (req, reply) => {
             const schema = z.object({
-                label:      z.string().default('INBOX'),
+                label:      z.string().default(config.GMAIL_LABEL),
+                query:      z.string().optional(),
                 max_emails: z.number().int().positive().max(100).default(50),
             });
             const parsed = schema.safeParse(req.body ?? {});
@@ -18,6 +20,7 @@ export function createGmailSyncRouter(service: GmailSyncService = defaultService
 
             const result = await service.sync({
                 label:     parsed.data.label,
+                query:     parsed.data.query,
                 maxEmails: parsed.data.max_emails,
             });
 

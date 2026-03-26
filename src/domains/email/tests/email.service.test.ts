@@ -2,18 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NotFoundError } from '../../../core/errors.js';
 import { hashEmail } from '../../../db/schema/emails.schema.js';
 import type { EmailRepository } from '../email.repository.js';
-
-// ── Mock email-analyze before importing service ───────────────────────────────
-
-const mockAnalyzeEmail      = vi.fn();
-const mockAnalyzeEmailBatch = vi.fn();
-
-vi.mock('../../../ai/email-analyze.js', () => ({
-    analyzeEmail:      mockAnalyzeEmail,
-    analyzeEmailBatch: mockAnalyzeEmailBatch,
-}));
-
-const { createEmailService } = await import('../email.service.js');
+import { createEmailService } from '../email.service.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock repository factory
@@ -72,17 +61,6 @@ function makeCreateInput(overrides: Record<string, unknown> = {}) {
         body_raw:     `Body ${counter}`,
         recipients:   ['recipient@example.com'],
         labels:       ['inbox'],
-        ...overrides,
-    };
-}
-
-function makeAnalysisResult(overrides: Record<string, unknown> = {}) {
-    return {
-        summary:         'Test summary.',
-        priority:        'medium' as const,
-        actions:         ['Action 1'],
-        key_info:        'Key date: June 15',
-        suggested_reply: 'Reply suggestion.',
         ...overrides,
     };
 }
@@ -301,173 +279,6 @@ describe('emailService.ingest()', () => {
         const arg = vi.mocked(repo.create).mock.calls[0][0];
         expect(arg.recipients).toBe('[]');
         expect(arg.labels).toBe('["inbox"]');
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// analyze()
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('emailService.analyze()', () => {
-    let repo: EmailRepository;
-    beforeEach(() => { counter = 0; repo = createMockRepo(); vi.clearAllMocks(); });
-
-    it('throws NotFoundError when email does not exist', async () => {
-        const service = createEmailService(repo);
-        await expect(service.analyze('missing_id')).rejects.toThrow(NotFoundError);
-    });
-
-    it('calls analyzeEmail with correct fields', async () => {
-        const stored = makeStoredEmail();
-        vi.mocked(repo.findById).mockResolvedValue(stored as any);
-        vi.mocked(repo.update).mockResolvedValue({ ...stored, body_summary: 'Test summary.' } as any);
-        mockAnalyzeEmail.mockResolvedValue(makeAnalysisResult());
-
-        const service = createEmailService(repo);
-        await service.analyze(stored.id);
-
-        expect(mockAnalyzeEmail).toHaveBeenCalledWith({
-            sender_name:  stored.sender_name,
-            sender_email: stored.sender_email,
-            subject:      stored.subject,
-            body_raw:     stored.body_raw,
-            body_summary: stored.body_summary,
-        });
-    });
-
-    it('persists the summary to body_summary via repository.update', async () => {
-        const stored   = makeStoredEmail();
-        const analysis = makeAnalysisResult({ summary: 'Persisted summary.' });
-        vi.mocked(repo.findById).mockResolvedValue(stored as any);
-        vi.mocked(repo.update).mockResolvedValue({ ...stored, body_summary: 'Persisted summary.' } as any);
-        mockAnalyzeEmail.mockResolvedValue(analysis);
-
-        const service = createEmailService(repo);
-        await service.analyze(stored.id);
-
-        expect(repo.update).toHaveBeenCalledWith(stored.id, { body_summary: 'Persisted summary.' });
-    });
-
-    it('returns the email and analysis result', async () => {
-        const stored   = makeStoredEmail();
-        const analysis = makeAnalysisResult();
-        vi.mocked(repo.findById).mockResolvedValue(stored as any);
-        vi.mocked(repo.update).mockResolvedValue(stored as any);
-        mockAnalyzeEmail.mockResolvedValue(analysis);
-
-        const service = createEmailService(repo);
-        const result  = await service.analyze(stored.id);
-
-        expect(result.email).toBeDefined();
-        expect(result.analysis.summary).toBe('Test summary.');
-        expect(result.analysis.priority).toBe('medium');
-    });
-
-    it('propagates errors thrown by analyzeEmail', async () => {
-        const stored = makeStoredEmail();
-        vi.mocked(repo.findById).mockResolvedValue(stored as any);
-        mockAnalyzeEmail.mockRejectedValue(new Error('Claude API down'));
-
-        const service = createEmailService(repo);
-        await expect(service.analyze(stored.id)).rejects.toThrow('Claude API down');
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// analyzeBatch()
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('emailService.analyzeBatch()', () => {
-    let repo: EmailRepository;
-    beforeEach(() => { counter = 0; repo = createMockRepo(); vi.clearAllMocks(); });
-
-    it('throws when given an empty ids array', async () => {
-        const service = createEmailService(repo);
-        await expect(service.analyzeBatch([])).rejects.toThrow('No email IDs provided');
-    });
-
-    it('throws NotFoundError when none of the ids exist', async () => {
-        vi.mocked(repo.findById).mockResolvedValue(null as any);
-        const service = createEmailService(repo);
-        await expect(service.analyzeBatch(['missing1', 'missing2'])).rejects.toThrow(NotFoundError);
-    });
-
-    it('returns batch analysis and per-email results', async () => {
-        const emails = [makeStoredEmail(), makeStoredEmail()];
-        vi.mocked(repo.findById)
-            .mockResolvedValueOnce(emails[0] as any)
-            .mockResolvedValueOnce(emails[1] as any);
-        vi.mocked(repo.update).mockResolvedValue(emails[0] as any);
-        mockAnalyzeEmailBatch.mockResolvedValue({
-            summary: 'Batch summary.', priority: 'high',
-            actions: ['Action A'], key_info: null, email_count: 2,
-        });
-        mockAnalyzeEmail.mockResolvedValue(makeAnalysisResult());
-
-        const service = createEmailService(repo);
-        const result  = await service.analyzeBatch([emails[0].id, emails[1].id]);
-
-        expect(result.batch.summary).toBe('Batch summary.');
-        expect(result.batch.email_count).toBe(2);
-        expect(result.emails).toHaveLength(2);
-    });
-
-    it('persists body_summary for each email individually', async () => {
-        const emails = [makeStoredEmail(), makeStoredEmail()];
-        vi.mocked(repo.findById)
-            .mockResolvedValueOnce(emails[0] as any)
-            .mockResolvedValueOnce(emails[1] as any);
-        vi.mocked(repo.update).mockResolvedValue(emails[0] as any);
-        mockAnalyzeEmailBatch.mockResolvedValue({
-            summary: 'Batch.', priority: 'low', actions: [], key_info: null, email_count: 2,
-        });
-        mockAnalyzeEmail
-            .mockResolvedValueOnce(makeAnalysisResult({ summary: 'Summary A.' }))
-            .mockResolvedValueOnce(makeAnalysisResult({ summary: 'Summary B.' }));
-
-        const service = createEmailService(repo);
-        await service.analyzeBatch([emails[0].id, emails[1].id]);
-
-        expect(repo.update).toHaveBeenCalledWith(emails[0].id, { body_summary: 'Summary A.' });
-        expect(repo.update).toHaveBeenCalledWith(emails[1].id, { body_summary: 'Summary B.' });
-    });
-
-    it('lists missing ids when some emails are not found', async () => {
-        const email = makeStoredEmail();
-        vi.mocked(repo.findById)
-            .mockResolvedValueOnce(email as any)
-            .mockResolvedValueOnce(null as any);
-        vi.mocked(repo.update).mockResolvedValue(email as any);
-        mockAnalyzeEmailBatch.mockResolvedValue({
-            summary: 'Partial.', priority: 'low', actions: [], key_info: null, email_count: 1,
-        });
-        mockAnalyzeEmail.mockResolvedValue(makeAnalysisResult());
-
-        const service = createEmailService(repo);
-        const result  = await service.analyzeBatch([email.id, 'missing_id']);
-
-        expect(result.missing).toContain('missing_id');
-    });
-
-    it('records errors in per-email results when individual analysis fails', async () => {
-        const emails = [makeStoredEmail(), makeStoredEmail()];
-        vi.mocked(repo.findById)
-            .mockResolvedValueOnce(emails[0] as any)
-            .mockResolvedValueOnce(emails[1] as any);
-        vi.mocked(repo.update).mockResolvedValue(emails[0] as any);
-        mockAnalyzeEmailBatch.mockResolvedValue({
-            summary: 'Batch.', priority: 'medium', actions: [], key_info: null, email_count: 2,
-        });
-        mockAnalyzeEmail
-            .mockResolvedValueOnce(makeAnalysisResult())
-            .mockRejectedValueOnce(new Error('Rate limit'));
-
-        const service = createEmailService(repo);
-        const result  = await service.analyzeBatch([emails[0].id, emails[1].id]);
-
-        const failed = result.emails.find(e => e.error !== null);
-        expect(failed).toBeDefined();
-        expect(failed!.error).toContain('Rate limit');
     });
 });
 

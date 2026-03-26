@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>assistant</title>
+    <title>dashboard</title>
     <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
@@ -11,312 +11,126 @@
 
     <!-- ── Masthead ─────────────────────────────────────────────────────────── -->
     <header class="masthead">
-        <div class="masthead-title">assistant</div>
+        <div class="masthead-title">dashboard</div>
         <div class="masthead-date" id="masthead-date"></div>
-        <div class="masthead-right" id="status-bar">
-            <!-- status pills injected by app.js -->
+        <div class="masthead-right">
+            <span class="masthead-user" id="masthead-user"></span>
+            <button class="masthead-sync-btn" id="sync-btn">↻ Sync</button>
         </div>
     </header>
 
     <!-- ── Sidenav ──────────────────────────────────────────────────────────── -->
     <nav class="sidenav">
         <div class="nav-section">
-            <div class="nav-label">Daily</div>
-            <div class="nav-item active" data-view="brief">Brief</div>
-            <div class="nav-item" data-view="inbox" id="nav-inbox">Inbox</div>
-        </div>
-        <div class="nav-section">
-            <div class="nav-label">Work</div>
-            <div class="nav-item" data-view="tasks">Tasks <span class="nav-badge-gray" id="badge-tasks"></span></div>
-            <div class="nav-item" data-view="projects">Projects <span class="nav-badge-gray"></span></div>
+            <div class="nav-item active" data-view="dashboard">Dashboard</div>
+            <div class="nav-item" data-view="digests" id="nav-digests">
+                Digests <span class="nav-badge-gray" id="badge-digests"></span>
+            </div>
             <div class="nav-item" data-view="calendar">Calendar</div>
         </div>
         <div class="nav-section">
-            <div class="nav-label">Capture</div>
-            <div class="nav-item" data-view="ideas">Ideas</div>
-            <div class="nav-item" data-view="research">Research</div>
-        </div>
-        <div class="nav-section">
-            <div class="nav-label">Life</div>
-            <div class="nav-item" data-view="habits">Habits</div>
-            <div class="nav-item" data-view="groceries">Groceries</div>
-        </div>
-        <div class="nav-section">
-            <div class="nav-label">Settings</div>
-            <div class="nav-item" data-view="gmail">Gmail sync</div>
+            <div class="nav-label">Account</div>
+            <div class="nav-item" data-view="settings">Google</div>
         </div>
     </nav>
 
     <!-- ── Main content ─────────────────────────────────────────────────────── -->
     <main class="main">
 
-        <!-- Brief view (default) -->
-        <div class="view active" id="view-brief">
+        <!-- Dashboard view -->
+        <div class="view active" id="view-dashboard">
 
-            <!-- AI brief banner -->
-            <div class="brief-banner" id="brief-banner">
-                <div class="brief-loading">
-                    <span class="spinner"></span>
-                    <span>Loading…</span>
+            <!-- Metric strip -->
+            <div class="metric-strip">
+                <div class="metric-card">
+                    <div class="metric-value" id="m-today">—</div>
+                    <div class="metric-label">Events today</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="m-week">—</div>
+                    <div class="metric-label">This week</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="m-digests">—</div>
+                    <div class="metric-label">Digests</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value metric-value--ts" id="m-sync">—</div>
+                    <div class="metric-label">Last sync</div>
                 </div>
             </div>
 
-            <!-- Priority nodes -->
-            <div class="node-group">
-                <div class="section-head">
-                    <div class="section-title">Priority</div>
-                    <div class="section-count">3 items</div>
-                    <button class="section-action">view all →</button>
-                </div>
-
-                <div class="node-row p0">
-                    <div class="node-check"></div>
-                    <div class="node-body">
-                        <div class="node-title">Pay invoice #4521 — $2,840</div>
-                        <div class="node-desc">Remit to Acme Corp via ACH or credit card</div>
-                        <div class="node-tags">
-                            <span class="tag tag-todo">todo</span>
-                            <span class="tag tag-p0">P0</span>
-                            <span class="tag tag-due">due today</span>
-                        </div>
+            <!-- Two-column body -->
+            <div class="dash-grid">
+                <div>
+                    <div class="section-head">
+                        <div class="section-title">Schedule</div>
+                        <button class="section-action" id="dash-cal-link">all events →</button>
                     </div>
-                    <div class="node-time overdue">today</div>
-                </div>
-
-                <div class="node-row p0">
-                    <div class="node-check"></div>
-                    <div class="node-body">
-                        <div class="node-title">Submit Q3 team initiative priorities</div>
-                        <div class="node-desc">Top 3 team initiatives to Sarah Chen by Friday EOD</div>
-                        <div class="node-tags">
-                            <span class="tag tag-todo">todo</span>
-                            <span class="tag tag-p0">P0</span>
-                            <span class="tag tag-due">fri 14 jun</span>
-                        </div>
+                    <div id="dash-schedule">
+                        <div class="placeholder-row"><span class="spinner"></span></div>
                     </div>
-                    <div class="node-time">4d</div>
                 </div>
-
-                <div class="node-row p1">
-                    <div class="node-check"></div>
-                    <div class="node-body">
-                        <div class="node-title">Complete self-assessment for performance review</div>
-                        <div class="node-desc">All managers must submit before June 25</div>
-                        <div class="node-tags">
-                            <span class="tag tag-todo">todo</span>
-                            <span class="tag tag-p1">P1</span>
-                            <span class="tag tag-due">25 jun</span>
-                        </div>
+                <div>
+                    <div class="section-head">
+                        <div class="section-title">Recent Digests</div>
+                        <button class="section-action" id="dash-digests-link">all →</button>
                     </div>
-                    <div class="node-time">15d</div>
+                    <div id="dash-digests">
+                        <div class="placeholder-row"><span class="spinner"></span></div>
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Inbox preview -->
-            <div class="node-group">
-                <div class="section-head">
-                    <div class="section-title">Inbox</div>
-                    <div class="section-count" id="inbox-count">—</div>
-                    <button class="section-action" onclick="document.querySelector('[data-view=inbox]').click()">run pipeline →</button>
-                </div>
-
-                <div class="email-row unread">
-                    <div>
-                        <div class="email-from">Sarah Chen</div>
-                        <div class="email-subject">Q3 roadmap action items</div>
-                        <div class="email-preview">We need each team lead to submit top 3 initiatives by Friday EOD…</div>
-                    </div>
-                    <div class="email-meta">14:32</div>
-                </div>
-
-                <div class="email-row unread">
-                    <div>
-                        <div class="email-from">Billing Dept · Acme Corp</div>
-                        <div class="email-subject">Invoice #4521 due June 15</div>
-                        <div class="email-preview">Invoice #4521 for $2,840.00 is due on June 15, 2024…</div>
-                    </div>
-                    <div class="email-meta">11:15</div>
-                </div>
-
-                <div class="email-row unread">
-                    <div>
-                        <div class="email-from">Marcus Webb</div>
-                        <div class="email-subject">Team offsite — hotel options shortlist</div>
-                        <div class="email-preview">Three hotel options for September: Cavallo Point, Alila Ventana…</div>
-                    </div>
-                    <div class="email-meta">09:48</div>
-                </div>
-            </div>
-
-        </div><!-- /view-brief -->
-
-        <!-- Inbox view -->
-        <div class="view" id="view-inbox">
+        <!-- Digests view -->
+        <div class="view" id="view-digests">
             <div class="section-head">
-                <div class="section-title">Inbox</div>
-                <button class="section-action" onclick="window.location.href='/pipeline.html'">↻ Run pipeline</button>
+                <div class="section-title">Digests</div>
+                <div class="section-count" id="digests-count"></div>
+                <button class="section-action" id="sync-digests-btn">↻ Sync</button>
             </div>
-            <div style="padding:40px 0;text-align:center;font-family:var(--mono);font-size:12px;color:var(--ink4)">
-                Open the email pipeline to fetch and process emails.
-                <br><br>
-                <a href="/pipeline.html" style="color:var(--accent);text-decoration:none">→ Go to pipeline</a>
+            <div id="digests-list">
+                <div class="placeholder-row"><span class="spinner"></span></div>
             </div>
         </div>
 
-        <!-- Tasks view (placeholder) -->
-        <div class="view" id="view-tasks">
-            <div class="section-head"><div class="section-title">Tasks</div></div>
-            <div style="padding:40px 0;text-align:center;font-family:var(--mono);font-size:12px;color:var(--ink4)">Coming soon</div>
+        <!-- Calendar view -->
+        <div class="view" id="view-calendar">
+            <div class="section-head">
+                <div class="section-title">Calendar</div>
+                <div class="section-count" id="calendar-count"></div>
+                <button class="section-action" id="sync-calendar-btn">↻ Sync</button>
+            </div>
+            <div id="calendar-list">
+                <div class="placeholder-row"><span class="spinner"></span></div>
+            </div>
         </div>
 
-        <!-- Gmail settings view -->
-        <div class="view" id="view-gmail">
-            <div class="section-head"><div class="section-title">Gmail sync</div></div>
-            <div style="margin-top:8px">
-                <div id="gmail-status-block" style="font-family:var(--mono);font-size:12px;color:var(--ink3);margin-bottom:20px">
-                    Checking connection…
-                </div>
+        <!-- Settings view -->
+        <div class="view" id="view-settings">
+            <div class="section-head"><div class="section-title">Google Account</div></div>
+            <div id="google-status-block" style="font-family:var(--mono);font-size:12px;color:var(--ink3);margin-bottom:20px">
+                Checking connection…
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
                 <a href="/integrations/google/auth"
                    style="display:inline-flex;align-items:center;gap:8px;padding:9px 18px;background:var(--ink);color:#f0ece4;border-radius:2px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;text-decoration:none;transition:background 0.15s"
                    onmouseover="this.style.background='var(--accent)'" onmouseout="this.style.background='var(--ink)'">
-                    Connect Gmail →
+                    Reconnect Google →
                 </a>
+                <button id="signout-btn"
+                   style="display:inline-flex;align-items:center;padding:9px 18px;background:transparent;color:var(--ink3);border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer;transition:all 0.15s"
+                   onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+                   onmouseout="this.style.borderColor='var(--rule)';this.style.color='var(--ink3)'">
+                    Sign out
+                </button>
             </div>
-        </div>
-
-        <!-- Placeholder views -->
-        <div class="view" id="view-projects">
-            <div class="section-head"><div class="section-title">Projects</div></div>
-            <div style="padding:40px 0;text-align:center;font-family:var(--mono);font-size:12px;color:var(--ink4)">Coming soon</div>
-        </div>
-        <div class="view" id="view-calendar">
-            <div class="section-head"><div class="section-title">Calendar</div></div>
-            <div style="padding:40px 0;text-align:center;font-family:var(--mono);font-size:12px;color:var(--ink4)">Coming soon</div>
-        </div>
-        <div class="view" id="view-ideas">
-            <div class="section-head"><div class="section-title">Ideas</div></div>
-            <div style="padding:40px 0;text-align:center;font-family:var(--mono);font-size:12px;color:var(--ink4)">Coming soon</div>
-        </div>
-        <div class="view" id="view-research">
-            <div class="section-head"><div class="section-title">Research</div></div>
-            <div style="padding:40px 0;text-align:center;font-family:var(--mono);font-size:12px;color:var(--ink4)">Coming soon</div>
-        </div>
-        <div class="view" id="view-habits">
-            <div class="section-head"><div class="section-title">Habits</div></div>
-            <div style="padding:40px 0;text-align:center;font-family:var(--mono);font-size:12px;color:var(--ink4)">Coming soon</div>
-        </div>
-        <div class="view" id="view-groceries">
-            <div class="section-head"><div class="section-title">Groceries</div></div>
-            <div style="padding:40px 0;text-align:center;font-family:var(--mono);font-size:12px;color:var(--ink4)">Coming soon</div>
         </div>
 
     </main>
-
-    <!-- ── Right panel ───────────────────────────────────────────────────────── -->
-    <aside class="sidepanel">
-
-        <div class="panel-block">
-            <div class="panel-block-title">This week</div>
-            <div class="cal-strip">
-                <div class="cal-day today">
-                    <div class="cal-day-name">M</div>
-                    <div class="cal-day-num">16</div>
-                </div>
-                <div class="cal-day has-event">
-                    <div class="cal-day-name">T</div>
-                    <div class="cal-day-num">17</div>
-                </div>
-                <div class="cal-day has-event">
-                    <div class="cal-day-name">W</div>
-                    <div class="cal-day-num">18</div>
-                </div>
-                <div class="cal-day">
-                    <div class="cal-day-name">T</div>
-                    <div class="cal-day-num">19</div>
-                </div>
-                <div class="cal-day has-event">
-                    <div class="cal-day-name">F</div>
-                    <div class="cal-day-num">20</div>
-                </div>
-                <div class="cal-day weekend">
-                    <div class="cal-day-name">S</div>
-                    <div class="cal-day-num">21</div>
-                </div>
-                <div class="cal-day weekend">
-                    <div class="cal-day-name">S</div>
-                    <div class="cal-day-num">22</div>
-                </div>
-            </div>
-
-            <div class="event-item">
-                <div class="event-time">09:00</div>
-                <div>
-                    <div class="event-name">Engineering standup</div>
-                    <div class="event-loc">Google Meet</div>
-                </div>
-            </div>
-            <div class="event-item" style="border-left-color:#6a2d8a">
-                <div class="event-time">Wed</div>
-                <div>
-                    <div class="event-name">Flight SFO → JFK</div>
-                    <div class="event-loc">UA578 · departs 08:15</div>
-                </div>
-            </div>
-            <div class="event-item">
-                <div class="event-time">Fri</div>
-                <div>
-                    <div class="event-name">Q3 roadmap deadline</div>
-                    <div class="event-loc">Submit to Sarah by EOD</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel-block">
-            <div class="panel-block-title">Grocery watch</div>
-            <div class="simple-row">
-                <span>Whole milk</span>
-                <span class="row-status-warn">depletes tomorrow</span>
-            </div>
-            <div class="simple-row">
-                <span>Eggs</span>
-                <span class="row-status-warn">depletes in 2d</span>
-            </div>
-            <div class="simple-row">
-                <span>Olive oil</span>
-                <span class="row-status-ok">10d remaining</span>
-            </div>
-            <div class="simple-row">
-                <span>Coffee beans</span>
-                <span class="row-status-ok">5d remaining</span>
-            </div>
-            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--rule);font-family:var(--mono);font-size:10px;color:var(--accent);font-weight:500">
-                → Schedule grocery run for Tuesday
-            </div>
-        </div>
-
-        <div class="panel-block">
-            <div class="panel-block-title">Habits · today</div>
-            <div class="simple-row habit-row">
-                <span>Morning run</span>
-                <span class="habit-status row-status-pending">○ pending</span>
-            </div>
-            <div class="simple-row habit-row">
-                <span>Meditate</span>
-                <span class="habit-status row-status-done">✓ done</span>
-            </div>
-            <div class="simple-row habit-row">
-                <span>Journal</span>
-                <span class="habit-status row-status-pending">○ pending</span>
-            </div>
-        </div>
-
-        <button class="run-pipeline" id="run-pipeline-btn">
-            ↻ Run email pipeline
-        </button>
-
-    </aside>
 </div>
 
-<script type="module" src="/js/api.js"></script>
+<script type="module" src="/js/app.js"></script>
 </body>
 </html>

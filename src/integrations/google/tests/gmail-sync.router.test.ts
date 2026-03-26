@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import { createGmailSyncRouter } from '../../../../src/integrations/google/gmail-sync.router.js';
 import { errorHandler } from '../../../../src/core/middleware/error-handler.js';
 import { ExternalServiceError } from '../../../../src/core/errors.js';
+import { config } from '../../../../src/core/config.js';
 import type { GmailSyncService } from '../../../../src/integrations/google/gmail-sync.service.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -11,6 +12,7 @@ import type { GmailSyncService } from '../../../../src/integrations/google/gmail
 
 function createMockService(): GmailSyncService {
     return {
+        resolveLabelId: vi.fn(),
         listMessageIds: vi.fn(),
         fetchMessage:   vi.fn(),
         sync:           vi.fn(),
@@ -58,13 +60,13 @@ describe('POST /integrations/google/sync', () => {
         expect(service.sync).toHaveBeenCalledWith({ label: 'STARRED', maxEmails: 30 });
     });
 
-    it('uses default label INBOX and max_emails 50 when body is empty', async () => {
+    it('uses default label from GMAIL_LABEL env var and max_emails 50 when body is empty', async () => {
         vi.mocked(service.sync).mockResolvedValue({ fetched: 0, stored: 0, duplicates: 0, errors: 0 });
 
         const app = await buildApp(service);
         await app.inject({ method: 'POST', url: '/integrations/google/sync', payload: {} });
 
-        expect(service.sync).toHaveBeenCalledWith({ label: 'INBOX', maxEmails: 50 });
+        expect(service.sync).toHaveBeenCalledWith({ label: config.GMAIL_LABEL, maxEmails: 50 });
     });
 
     it('uses defaults when no body is provided', async () => {
@@ -73,7 +75,7 @@ describe('POST /integrations/google/sync', () => {
         const app = await buildApp(service);
         await app.inject({ method: 'POST', url: '/integrations/google/sync' });
 
-        expect(service.sync).toHaveBeenCalledWith({ label: 'INBOX', maxEmails: 50 });
+        expect(service.sync).toHaveBeenCalledWith({ label: config.GMAIL_LABEL, maxEmails: 50 });
     });
 
     it('returns 400 when max_emails exceeds 100', async () => {

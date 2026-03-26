@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/app.ts",
+    "dev:debug": "node --inspect --import tsx/esm --watch src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js",
     "db:generate": "node --require tsx/cjs node_modules/.bin/drizzle-kit generate",
