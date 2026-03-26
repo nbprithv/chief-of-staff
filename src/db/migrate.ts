@@ -16,7 +16,8 @@ if (url.startsWith('file:')) {
 const client = createClient({ url, authToken });
 const db     = drizzle(client);
 
-console.log('Running migrations…');
+const target = url.startsWith('file:') ? url : url.replace(/\/\/.*@/, '//***@'); // redact auth
+console.log(`Running migrations against: ${target}`);
 await migrate(db, { migrationsFolder: './drizzle' });
 console.log('✓ Migrations complete');
 
