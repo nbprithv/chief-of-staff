@@ -4,7 +4,7 @@ import { NotFoundError } from '../../core/errors.js';
 import type { CreateEmailInput, UpdateEmailInput } from '../types.js';
 import type { EmailRepository } from './email.repository.js';
 
-import { logger } from '../../core/logger';
+import { logger } from '../../core/logger.js';
 
 export function createEmailService(repository: EmailRepository = defaultRepository) {
     return {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ExternalServiceError } from '../../../core/errors';
+import { ExternalServiceError } from '../../../core/errors.js';
 
 // ── Mock googleapis ───────────────────────────────────────────────────────────
 

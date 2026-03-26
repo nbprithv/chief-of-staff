@@ -10,10 +10,10 @@ import {
 } from './google-oauth.client.js';
 import { gmailSyncService } from './gmail-sync.service.js';
 import { calendarSyncService } from './calendar-sync.service.js';
-import { loadTokens } from './token-store';
-import { logger } from '../../core/logger';
-import { ExternalServiceError, AppError } from '../../core/errors';
-import { config } from '../../core/config';
+import { loadTokens } from './token-store.js';
+import { logger } from '../../core/logger.js';
+import { ExternalServiceError, AppError } from '../../core/errors.js';
+import { config } from '../../core/config.js';
 import { db } from '../../db/client.js';
 import { emails } from '../../db/schema/emails.schema.js';
 import { nodes } from '../../db/schema/nodes.schema.js';

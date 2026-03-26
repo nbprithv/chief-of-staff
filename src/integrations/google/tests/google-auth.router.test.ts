@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Fastify from 'fastify';
-import { errorHandler } from '../../../core/middleware/error-handler';
-import { ExternalServiceError } from '../../../core/errors';
+import { errorHandler } from '../../../core/middleware/error-handler.js';
+import { ExternalServiceError } from '../../../core/errors.js';
 
 // ── Mock OAuth client functions ───────────────────────────────────────────────
 
