@@ -763,13 +763,18 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
 .modal-body::-webkit-scrollbar-thumb { background: var(--rule); }
 
 .modal-link {
+    display: inline-block;
     color: var(--accent);
-    text-decoration: none;
-    font-size: 11px;
-    vertical-align: middle;
-    opacity: 0.8;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 2px 0;
+    min-height: 44px;
+    line-height: 44px;
+    word-break: break-word;
 }
-.modal-link:hover { opacity: 1; text-decoration: underline; }
+.modal-link:hover { opacity: 0.8; }
 
 /* ── Global touch / tap improvements ────────────────────────────────────────── */
 

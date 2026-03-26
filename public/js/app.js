@@ -408,16 +408,7 @@ function htmlToReadableNodes(html) {
         if (tag === 'a') {
             const href = node.getAttribute('href') || '';
             const label = node.textContent.trim();
-            if (href && href.startsWith('http') && label && label !== href) {
-                frag.appendChild(document.createTextNode(label + ' '));
-                const link = document.createElement('a');
-                link.href = href;
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-                link.textContent = '↗';
-                link.className = 'modal-link';
-                frag.appendChild(link);
-            } else if (href && href.startsWith('http')) {
+            if (href && href.startsWith('http')) {
                 const link = document.createElement('a');
                 link.href = href;
                 link.target = '_blank';
