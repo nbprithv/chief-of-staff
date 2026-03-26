@@ -762,16 +762,23 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
 .modal-body::-webkit-scrollbar { width: 4px; }
 .modal-body::-webkit-scrollbar-thumb { background: var(--rule); }
 
-.modal-iframe {
+.modal-iframe-wrap {
     display: none;
     flex: 1;
+    min-height: 0; /* required for flex children to shrink/grow correctly */
+    overflow: hidden;
+}
+
+.modal-iframe-wrap iframe {
     width: 100%;
+    height: 100%;
     border: none;
+    display: block;
     background: #fff;
 }
 
-.modal-overlay.html-mode .modal-body   { display: none; }
-.modal-overlay.html-mode .modal-iframe { display: block; }
+.modal-overlay.html-mode .modal-body        { display: none; }
+.modal-overlay.html-mode .modal-iframe-wrap { display: block; }
 
 /* ── Global touch / tap improvements ────────────────────────────────────────── */
 
@@ -921,8 +928,7 @@ button, [role="button"], .nav-item, .digest-row, .email-row, .node-row, .simple-
     .modal-body { padding: 16px 20px 24px; }
 
     /* Safe-area inset at bottom of modal body */
-    .modal-body,
-    .modal-iframe {
+    .modal-body {
         padding-bottom: calc(20px + env(safe-area-inset-bottom));
     }
 }
