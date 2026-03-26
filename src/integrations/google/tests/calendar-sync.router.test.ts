@@ -1,9 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Fastify from 'fastify';
-import { createCalendarSyncRouter } from '../../../../src/integrations/google/calendar-sync.router.js';
 import { errorHandler } from '../../../../src/core/middleware/error-handler.js';
 import { ExternalServiceError } from '../../../../src/core/errors.js';
 import type { CalendarSyncService } from '../../../../src/integrations/google/calendar-sync.service.js';
+
+// ── Mock session so all requests appear authenticated ─────────────────────────
+
+vi.mock('../../../../src/core/session.js', () => ({
+    getUserId:       vi.fn().mockReturnValue('test@example.com'),
+    setUserCookie:   vi.fn(),
+    clearUserCookie: vi.fn(),
+}));
+
+import { createCalendarSyncRouter } from '../../../../src/integrations/google/calendar-sync.router.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock service factory
@@ -65,7 +74,7 @@ describe('POST /integrations/google/calendars/sync', () => {
             timeMin:     '2024-01-01T00:00:00Z',
             timeMax:     '2024-12-31T23:59:59Z',
             maxResults:  100,
-        });
+        }, expect.any(String));
     });
 
     it('uses default max_results of 50 when not provided', async () => {
@@ -75,7 +84,8 @@ describe('POST /integrations/google/calendars/sync', () => {
         await app.inject({ method: 'POST', url: '/integrations/google/calendars/sync', payload: {} });
 
         expect(service.sync).toHaveBeenCalledWith(
-            expect.objectContaining({ maxResults: 50 })
+            expect.objectContaining({ maxResults: 50 }),
+            expect.any(String)
         );
     });
 
@@ -86,7 +96,8 @@ describe('POST /integrations/google/calendars/sync', () => {
         await app.inject({ method: 'POST', url: '/integrations/google/calendars/sync' });
 
         expect(service.sync).toHaveBeenCalledWith(
-            expect.objectContaining({ maxResults: 50 })
+            expect.objectContaining({ maxResults: 50 }),
+            expect.any(String)
         );
     });
 
@@ -97,7 +108,8 @@ describe('POST /integrations/google/calendars/sync', () => {
         await app.inject({ method: 'POST', url: '/integrations/google/calendars/sync', payload: {} });
 
         expect(service.sync).toHaveBeenCalledWith(
-            expect.objectContaining({ calendarId: undefined })
+            expect.objectContaining({ calendarId: undefined }),
+            expect.any(String)
         );
     });
 

@@ -190,17 +190,6 @@ describe('exchangeCodeForTokens()', () => {
         expect(result.refresh_token).toBe('refresh_xyz');
     });
 
-    it('saves tokens to the token store', async () => {
-        mockGetToken.mockResolvedValue({ tokens: {
-                access_token: 'tok', refresh_token: 'ref',
-                expiry_date: Date.now() + 3600000, token_type: 'Bearer', scope: 'x',
-            }});
-
-        await exchangeCodeForTokens('code');
-        expect(mockSaveTokens).toHaveBeenCalledOnce();
-        expect(mockSaveTokens.mock.calls[0][0].refresh_token).toBe('ref');
-    });
-
     it('throws ExternalServiceError when no refresh_token is returned', async () => {
         mockGetToken.mockResolvedValue({ tokens: { access_token: 'tok' } });
         await expect(exchangeCodeForTokens('code')).rejects.toThrow(ExternalServiceError);

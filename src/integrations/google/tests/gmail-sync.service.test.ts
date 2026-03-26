@@ -119,7 +119,7 @@ describe('gmailSyncService.listMessageIds()', () => {
             data: { messages: [{ id: 'id1' }, { id: 'id2' }, { id: 'id3' }] },
         });
         const service = createGmailSyncService(createMockRepo() as any);
-        const result  = await service.listMessageIds({ label: 'INBOX' });
+        const result  = await service.listMessageIds({ label: 'INBOX' }, 'test-user');
         expect(result.ids).toEqual(['id1', 'id2', 'id3']);
     });
 
@@ -128,28 +128,28 @@ describe('gmailSyncService.listMessageIds()', () => {
             data: { messages: [{ id: 'id1' }], nextPageToken: 'tok_abc' },
         });
         const service = createGmailSyncService(createMockRepo() as any);
-        const result  = await service.listMessageIds({});
+        const result  = await service.listMessageIds({}, 'test-user');
         expect(result.nextPageToken).toBe('tok_abc');
     });
 
     it('returns undefined nextPageToken when absent', async () => {
         mockMessagesList.mockResolvedValue({ data: { messages: [] } });
         const service = createGmailSyncService(createMockRepo() as any);
-        const result  = await service.listMessageIds({});
+        const result  = await service.listMessageIds({}, 'test-user');
         expect(result.nextPageToken).toBeUndefined();
     });
 
     it('returns empty ids when no messages exist', async () => {
         mockMessagesList.mockResolvedValue({ data: {} });
         const service = createGmailSyncService(createMockRepo() as any);
-        const result  = await service.listMessageIds({});
+        const result  = await service.listMessageIds({}, 'test-user');
         expect(result.ids).toEqual([]);
     });
 
     it('defaults label to GMAIL_LABEL env var', async () => {
         mockMessagesList.mockResolvedValue({ data: { messages: [] } });
         const service = createGmailSyncService(createMockRepo() as any);
-        await service.listMessageIds();
+        await service.listMessageIds({}, 'test-user');
         expect(mockMessagesList).toHaveBeenCalledWith(
             expect.objectContaining({ labelIds: [config.GMAIL_LABEL] })
         );
@@ -158,7 +158,7 @@ describe('gmailSyncService.listMessageIds()', () => {
     it('caps maxResults at 100', async () => {
         mockMessagesList.mockResolvedValue({ data: { messages: [] } });
         const service = createGmailSyncService(createMockRepo() as any);
-        await service.listMessageIds({ maxEmails: 999 });
+        await service.listMessageIds({ maxEmails: 999 }, 'test-user');
         expect(mockMessagesList).toHaveBeenCalledWith(
             expect.objectContaining({ maxResults: 100 })
         );
@@ -167,7 +167,7 @@ describe('gmailSyncService.listMessageIds()', () => {
     it('passes pageToken when provided', async () => {
         mockMessagesList.mockResolvedValue({ data: { messages: [] } });
         const service = createGmailSyncService(createMockRepo() as any);
-        await service.listMessageIds({ pageToken: 'page_xyz' });
+        await service.listMessageIds({ pageToken: 'page_xyz' }, 'test-user');
         expect(mockMessagesList).toHaveBeenCalledWith(
             expect.objectContaining({ pageToken: 'page_xyz' })
         );
@@ -176,13 +176,13 @@ describe('gmailSyncService.listMessageIds()', () => {
     it('throws ExternalServiceError when Gmail API fails', async () => {
         mockMessagesList.mockRejectedValue(new Error('API quota exceeded'));
         const service = createGmailSyncService(createMockRepo() as any);
-        await expect(service.listMessageIds()).rejects.toThrow(ExternalServiceError);
+        await expect(service.listMessageIds({}, 'test-user')).rejects.toThrow(ExternalServiceError);
     });
 
     it('includes the error message in the ExternalServiceError', async () => {
         mockMessagesList.mockRejectedValue(new Error('API quota exceeded'));
         const service = createGmailSyncService(createMockRepo() as any);
-        await expect(service.listMessageIds()).rejects.toThrow('API quota exceeded');
+        await expect(service.listMessageIds({}, 'test-user')).rejects.toThrow('API quota exceeded');
     });
 });
 
@@ -196,7 +196,7 @@ describe('gmailSyncService.fetchMessage()', () => {
     it('returns a parsed FetchedEmail', async () => {
         mockMessagesGet.mockResolvedValue({ data: makeGmailMessage() });
         const service = createGmailSyncService(createMockRepo() as any);
-        const email   = await service.fetchMessage('msg_001');
+        const email   = await service.fetchMessage('msg_001', 'test-user');
 
         expect(email.gmail_id).toBe('msg_001');
         expect(email.thread_id).toBe('thread_001');
@@ -221,7 +221,7 @@ describe('gmailSyncService.fetchMessage()', () => {
         });
         mockMessagesGet.mockResolvedValue({ data: msg });
         const service = createGmailSyncService(createMockRepo() as any);
-        const email   = await service.fetchMessage('msg_001');
+        const email   = await service.fetchMessage('msg_001', 'test-user');
 
         expect(email.sender_name).toBeNull();
         expect(email.sender_email).toBe('plain@example.com');
@@ -239,7 +239,7 @@ describe('gmailSyncService.fetchMessage()', () => {
         });
         mockMessagesGet.mockResolvedValue({ data: msg });
         const service = createGmailSyncService(createMockRepo() as any);
-        const email   = await service.fetchMessage('x');
+        const email   = await service.fetchMessage('x', 'test-user');
         expect(email.subject).toBe('(no subject)');
     });
 
@@ -257,7 +257,7 @@ describe('gmailSyncService.fetchMessage()', () => {
         });
         mockMessagesGet.mockResolvedValue({ data: msg });
         const service = createGmailSyncService(createMockRepo() as any);
-        const email   = await service.fetchMessage('x');
+        const email   = await service.fetchMessage('x', 'test-user');
         expect(email.recipients).toHaveLength(3);
         expect(email.recipients).toContain('z@w.com');
     });
@@ -265,14 +265,14 @@ describe('gmailSyncService.fetchMessage()', () => {
     it('prefers text/plain in a multipart message', async () => {
         mockMessagesGet.mockResolvedValue({ data: makeMultipartMessage() });
         const service = createGmailSyncService(createMockRepo() as any);
-        const email   = await service.fetchMessage('msg_multi');
+        const email   = await service.fetchMessage('msg_multi', 'test-user');
         expect(email.body_raw).toBe('Plain text body');
     });
 
     it('includes Gmail labels on the email', async () => {
         mockMessagesGet.mockResolvedValue({ data: makeGmailMessage() });
         const service = createGmailSyncService(createMockRepo() as any);
-        const email   = await service.fetchMessage('msg_001');
+        const email   = await service.fetchMessage('msg_001', 'test-user');
         expect(email.labels).toContain('INBOX');
         expect(email.labels).toContain('UNREAD');
     });
@@ -280,7 +280,7 @@ describe('gmailSyncService.fetchMessage()', () => {
     it('converts received_at to ISO 8601', async () => {
         mockMessagesGet.mockResolvedValue({ data: makeGmailMessage() });
         const service = createGmailSyncService(createMockRepo() as any);
-        const email   = await service.fetchMessage('msg_001');
+        const email   = await service.fetchMessage('msg_001', 'test-user');
         expect(email.received_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
     });
 
@@ -294,14 +294,14 @@ describe('gmailSyncService.fetchMessage()', () => {
         });
         mockMessagesGet.mockResolvedValue({ data: msg });
         const service = createGmailSyncService(createMockRepo() as any);
-        const email   = await service.fetchMessage('x');
+        const email   = await service.fetchMessage('x', 'test-user');
         expect(email.body_raw.length).toBeLessThanOrEqual(10000);
     });
 
     it('throws ExternalServiceError when Gmail API fails', async () => {
         mockMessagesGet.mockRejectedValue(new Error('Message not found'));
         const service = createGmailSyncService(createMockRepo() as any);
-        await expect(service.fetchMessage('bad_id')).rejects.toThrow(ExternalServiceError);
+        await expect(service.fetchMessage('bad_id', 'test-user')).rejects.toThrow(ExternalServiceError);
     });
 });
 
@@ -318,7 +318,7 @@ describe('gmailSyncService.sync()', () => {
     it('returns zeroed result when no messages are found', async () => {
         mockMessagesList.mockResolvedValue({ data: { messages: [] } });
         const service = createGmailSyncService(createMockRepo() as any);
-        const result  = await service.sync();
+        const result  = await service.sync({}, 'test-user');
         expect(result).toEqual({ fetched: 0, stored: 0, duplicates: 0, errors: 0 });
     });
 
@@ -333,7 +333,7 @@ describe('gmailSyncService.sync()', () => {
         vi.mocked(repo.findByContentHash).mockResolvedValue(null);
 
         const service = createGmailSyncService(repo as any);
-        const result  = await service.sync({ label: 'INBOX' });
+        const result  = await service.sync({ label: 'INBOX' }, 'test-user');
 
         expect(result.fetched).toBe(2);
         expect(result.stored).toBe(2);
@@ -356,7 +356,7 @@ describe('gmailSyncService.sync()', () => {
             .mockResolvedValueOnce({ id: 'existing' } as any);
 
         const service = createGmailSyncService(repo as any);
-        const result  = await service.sync();
+        const result  = await service.sync({}, 'test-user');
 
         expect(result.stored).toBe(1);
         expect(result.duplicates).toBe(1);
@@ -375,7 +375,7 @@ describe('gmailSyncService.sync()', () => {
         vi.mocked(repo.findByContentHash).mockResolvedValue(null);
 
         const service = createGmailSyncService(repo as any);
-        const result  = await service.sync();
+        const result  = await service.sync({}, 'test-user');
 
         expect(result.fetched).toBe(2);
         expect(result.stored).toBe(2);
@@ -389,7 +389,7 @@ describe('gmailSyncService.sync()', () => {
         vi.mocked(repo.findByContentHash).mockResolvedValue(null);
 
         const service = createGmailSyncService(repo as any);
-        await service.sync();
+        await service.sync({}, 'test-user');
 
         const createArg = vi.mocked(repo.create).mock.calls[0][0];
         expect(() => JSON.parse(createArg.recipients as string)).not.toThrow();
@@ -404,7 +404,7 @@ describe('gmailSyncService.sync()', () => {
         vi.mocked(repo.findByContentHash).mockResolvedValue(null);
 
         const service = createGmailSyncService(repo as any);
-        await service.sync();
+        await service.sync({}, 'test-user');
 
         const createArg = vi.mocked(repo.create).mock.calls[0][0];
         expect(createArg.body_summary).toBeNull();
@@ -415,14 +415,14 @@ describe('gmailSyncService.sync()', () => {
             data: { messages: [], nextPageToken: 'page_xyz' },
         });
         const service = createGmailSyncService(createMockRepo() as any);
-        const result  = await service.sync();
+        const result  = await service.sync({}, 'test-user');
         expect(result.nextPageToken).toBe('page_xyz');
     });
 
     it('uses GMAIL_LABEL env var as default label', async () => {
         mockMessagesList.mockResolvedValue({ data: { messages: [] } });
         const service = createGmailSyncService(createMockRepo() as any);
-        await service.sync();
+        await service.sync({}, 'test-user');
         expect(mockMessagesList).toHaveBeenCalledWith(
             expect.objectContaining({ labelIds: [config.GMAIL_LABEL] })
         );
@@ -448,7 +448,7 @@ describe('gmailSyncService.sync()', () => {
         vi.mocked(repo.findByContentHash).mockResolvedValue(null);
 
         const service = createGmailSyncService(repo as any);
-        await service.sync();
+        await service.sync({}, 'test-user');
 
         const ids = vi.mocked(repo.create).mock.calls.map(c => c[0].id);
         expect(new Set(ids).size).toBe(2);
@@ -457,7 +457,7 @@ describe('gmailSyncService.sync()', () => {
     it('throws when listMessageIds itself fails (not a per-message error)', async () => {
         mockMessagesList.mockRejectedValue(new Error('Auth error'));
         const service = createGmailSyncService(createMockRepo() as any);
-        await expect(service.sync()).rejects.toThrow(ExternalServiceError);
+        await expect(service.sync({}, 'test-user')).rejects.toThrow(ExternalServiceError);
     });
 });
 
@@ -479,7 +479,7 @@ describe('gmailSyncService.listLabels()', () => {
             },
         });
         const service = createGmailSyncService(createMockRepo() as any);
-        const labels  = await service.listLabels();
+        const labels  = await service.listLabels('test-user');
 
         expect(labels).toHaveLength(3);
         expect(labels[0]).toEqual({ id: 'INBOX', name: 'INBOX', type: 'system' });
@@ -489,13 +489,13 @@ describe('gmailSyncService.listLabels()', () => {
     it('returns empty array when no labels exist', async () => {
         mockLabelsList.mockResolvedValue({ data: {} });
         const service = createGmailSyncService(createMockRepo() as any);
-        const labels  = await service.listLabels();
+        const labels  = await service.listLabels('test-user');
         expect(labels).toEqual([]);
     });
 
     it('throws ExternalServiceError when Gmail API fails', async () => {
         mockLabelsList.mockRejectedValue(new Error('Unauthorized'));
         const service = createGmailSyncService(createMockRepo() as any);
-        await expect(service.listLabels()).rejects.toThrow(ExternalServiceError);
+        await expect(service.listLabels('test-user')).rejects.toThrow(ExternalServiceError);
     });
 });

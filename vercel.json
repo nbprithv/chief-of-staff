@@ -1,6 +1,7 @@
 {
   "version": 2,
   "buildCommand": "npm run db:migrate",
+  "ignoreCommand": "exit 0",
   "builds": [
     {
       "src": "api/index.ts",

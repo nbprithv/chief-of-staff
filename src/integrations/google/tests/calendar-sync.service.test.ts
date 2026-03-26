@@ -106,7 +106,7 @@ describe('calendarSyncService.listCalendars()', () => {
             },
         });
         const service = createCalendarSyncService(createMockDb() as any);
-        const result  = await service.listCalendars();
+        const result  = await service.listCalendars('test-user');
 
         expect(result).toHaveLength(2);
         expect(result[0]).toEqual({ id: 'calendar_primary', summary: 'Primary Calendar', primary: true });
@@ -116,7 +116,7 @@ describe('calendarSyncService.listCalendars()', () => {
     it('returns empty array when no calendars exist', async () => {
         mockCalendarListList.mockResolvedValue({ data: {} });
         const service = createCalendarSyncService(createMockDb() as any);
-        expect(await service.listCalendars()).toEqual([]);
+        expect(await service.listCalendars('test-user')).toEqual([]);
     });
 
     it('returns primary: false when primary field is absent', async () => {
@@ -124,20 +124,20 @@ describe('calendarSyncService.listCalendars()', () => {
             data: { items: [{ id: 'cal_x', summary: 'Other' }] },
         });
         const service = createCalendarSyncService(createMockDb() as any);
-        const result  = await service.listCalendars();
+        const result  = await service.listCalendars('test-user');
         expect(result[0]!.primary).toBe(false);
     });
 
     it('throws ExternalServiceError when API fails', async () => {
         mockCalendarListList.mockRejectedValue(new Error('Auth expired'));
         const service = createCalendarSyncService(createMockDb() as any);
-        await expect(service.listCalendars()).rejects.toThrow(ExternalServiceError);
+        await expect(service.listCalendars('test-user')).rejects.toThrow(ExternalServiceError);
     });
 
     it('includes the error message in ExternalServiceError', async () => {
         mockCalendarListList.mockRejectedValue(new Error('Auth expired'));
         const service = createCalendarSyncService(createMockDb() as any);
-        await expect(service.listCalendars()).rejects.toThrow('Auth expired');
+        await expect(service.listCalendars('test-user')).rejects.toThrow('Auth expired');
     });
 });
 
@@ -153,7 +153,7 @@ describe('calendarSyncService.fetchEvents()', () => {
             data: { items: [makeGCalEvent()] },
         });
         const service = createCalendarSyncService(createMockDb() as any);
-        const { events } = await service.fetchEvents();
+        const { events } = await service.fetchEvents({}, 'test-user');
 
         expect(events).toHaveLength(1);
         expect(events[0]!.gcal_id).toBe('evt_001');
@@ -168,7 +168,7 @@ describe('calendarSyncService.fetchEvents()', () => {
     it('parses attendees correctly', async () => {
         mockEventsList.mockResolvedValue({ data: { items: [makeGCalEvent()] } });
         const service = createCalendarSyncService(createMockDb() as any);
-        const { events } = await service.fetchEvents();
+        const { events } = await service.fetchEvents({}, 'test-user');
 
         expect(events[0]!.attendees).toHaveLength(1);
         expect(events[0]!.attendees[0]).toEqual({
@@ -179,14 +179,14 @@ describe('calendarSyncService.fetchEvents()', () => {
     it('extracts recurrence_rule from recurrence array', async () => {
         mockEventsList.mockResolvedValue({ data: { items: [makeGCalEvent()] } });
         const service = createCalendarSyncService(createMockDb() as any);
-        const { events } = await service.fetchEvents();
+        const { events } = await service.fetchEvents({}, 'test-user');
         expect(events[0]!.recurrence_rule).toBe('RRULE:FREQ=MONTHLY');
     });
 
     it('marks all-day events correctly', async () => {
         mockEventsList.mockResolvedValue({ data: { items: [makeAllDayEvent()] } });
         const service = createCalendarSyncService(createMockDb() as any);
-        const { events } = await service.fetchEvents();
+        const { events } = await service.fetchEvents({}, 'test-user');
 
         expect(events[0]!.all_day).toBe(true);
         expect(events[0]!.starts_at).toBe('2024-07-04');
@@ -197,35 +197,35 @@ describe('calendarSyncService.fetchEvents()', () => {
         const evt = makeGCalEvent({ summary: undefined });
         mockEventsList.mockResolvedValue({ data: { items: [evt] } });
         const service = createCalendarSyncService(createMockDb() as any);
-        const { events } = await service.fetchEvents();
+        const { events } = await service.fetchEvents({}, 'test-user');
         expect(events[0]!.title).toBe('(no title)');
     });
 
     it('returns empty events when no items exist', async () => {
         mockEventsList.mockResolvedValue({ data: {} });
         const service = createCalendarSyncService(createMockDb() as any);
-        const { events } = await service.fetchEvents();
+        const { events } = await service.fetchEvents({}, 'test-user');
         expect(events).toEqual([]);
     });
 
     it('returns nextPageToken when present', async () => {
         mockEventsList.mockResolvedValue({ data: { items: [], nextPageToken: 'tok_xyz' } });
         const service = createCalendarSyncService(createMockDb() as any);
-        const result  = await service.fetchEvents();
+        const result  = await service.fetchEvents({}, 'test-user');
         expect(result.nextPageToken).toBe('tok_xyz');
     });
 
     it('returns undefined nextPageToken when absent', async () => {
         mockEventsList.mockResolvedValue({ data: { items: [] } });
         const service = createCalendarSyncService(createMockDb() as any);
-        const result  = await service.fetchEvents();
+        const result  = await service.fetchEvents({}, 'test-user');
         expect(result.nextPageToken).toBeUndefined();
     });
 
     it('defaults calendarId to primary', async () => {
         mockEventsList.mockResolvedValue({ data: { items: [] } });
         const service = createCalendarSyncService(createMockDb() as any);
-        await service.fetchEvents();
+        await service.fetchEvents({}, 'test-user');
         expect(mockEventsList).toHaveBeenCalledWith(
             expect.objectContaining({ calendarId: 'primary' })
         );
@@ -234,7 +234,7 @@ describe('calendarSyncService.fetchEvents()', () => {
     it('passes custom calendarId to API', async () => {
         mockEventsList.mockResolvedValue({ data: { items: [] } });
         const service = createCalendarSyncService(createMockDb() as any);
-        await service.fetchEvents({ calendarId: 'work@example.com' });
+        await service.fetchEvents({ calendarId: 'work@example.com' }, 'test-user');
         expect(mockEventsList).toHaveBeenCalledWith(
             expect.objectContaining({ calendarId: 'work@example.com' })
         );
@@ -243,7 +243,7 @@ describe('calendarSyncService.fetchEvents()', () => {
     it('throws ExternalServiceError when API fails', async () => {
         mockEventsList.mockRejectedValue(new Error('Rate limit exceeded'));
         const service = createCalendarSyncService(createMockDb() as any);
-        await expect(service.fetchEvents()).rejects.toThrow(ExternalServiceError);
+        await expect(service.fetchEvents({}, 'test-user')).rejects.toThrow(ExternalServiceError);
     });
 });
 
@@ -260,7 +260,7 @@ describe('calendarSyncService.findByGcalId()', () => {
         db._where.mockResolvedValue([node]);
 
         const service = createCalendarSyncService(db as any);
-        const result  = await service.findByGcalId('evt_001');
+        const result  = await service.findByGcalId('evt_001', 'test-user');
         expect(result).toEqual(node);
     });
 
@@ -269,7 +269,7 @@ describe('calendarSyncService.findByGcalId()', () => {
         db._where.mockResolvedValue([]);
 
         const service = createCalendarSyncService(db as any);
-        const result  = await service.findByGcalId('evt_unknown');
+        const result  = await service.findByGcalId('evt_unknown', 'test-user');
         expect(result).toBeNull();
     });
 });
@@ -284,7 +284,7 @@ describe('calendarSyncService.sync()', () => {
     it('returns zeroed result when no events are found', async () => {
         mockEventsList.mockResolvedValue({ data: { items: [] } });
         const service = createCalendarSyncService(createMockDb() as any);
-        const result  = await service.sync();
+        const result  = await service.sync({}, 'test-user');
         expect(result).toEqual({ fetched: 0, stored: 0, duplicates: 0, errors: 0 });
     });
 
@@ -296,7 +296,7 @@ describe('calendarSyncService.sync()', () => {
         db._where.mockResolvedValue([]); // no duplicates
 
         const service = createCalendarSyncService(db as any);
-        const result  = await service.sync();
+        const result  = await service.sync({}, 'test-user');
 
         expect(result.fetched).toBe(2);
         expect(result.stored).toBe(2);
@@ -315,7 +315,7 @@ describe('calendarSyncService.sync()', () => {
             .mockResolvedValueOnce([{ id: 'existing-node' }]);
 
         const service = createCalendarSyncService(db as any);
-        const result  = await service.sync();
+        const result  = await service.sync({}, 'test-user');
 
         expect(result.stored).toBe(1);
         expect(result.duplicates).toBe(1);
@@ -333,7 +333,7 @@ describe('calendarSyncService.sync()', () => {
             .mockRejectedValueOnce(new Error('DB write error'));
 
         const service = createCalendarSyncService(db as any);
-        const result  = await service.sync();
+        const result  = await service.sync({}, 'test-user');
 
         expect(result.stored).toBe(1);
         expect(result.errors).toBe(1);
@@ -347,7 +347,7 @@ describe('calendarSyncService.sync()', () => {
         db._where.mockResolvedValue([]);
 
         const service = createCalendarSyncService(db as any);
-        await service.sync();
+        await service.sync({}, 'test-user');
 
         const values = db._values.mock.calls[0][0];
         expect(values.type).toBe('event');
@@ -364,7 +364,7 @@ describe('calendarSyncService.sync()', () => {
         db._where.mockResolvedValue([]);
 
         const service = createCalendarSyncService(db as any);
-        await service.sync();
+        await service.sync({}, 'test-user');
 
         const values   = db._values.mock.calls[0][0];
         const metadata = JSON.parse(values.metadata);
@@ -377,7 +377,7 @@ describe('calendarSyncService.sync()', () => {
         db._where.mockResolvedValue([]);
 
         const service = createCalendarSyncService(db as any);
-        await service.sync();
+        await service.sync({}, 'test-user');
 
         const values   = db._values.mock.calls[0][0];
         const metadata = JSON.parse(values.metadata);
@@ -388,13 +388,13 @@ describe('calendarSyncService.sync()', () => {
     it('includes nextPageToken in result when present', async () => {
         mockEventsList.mockResolvedValue({ data: { items: [], nextPageToken: 'page_abc' } });
         const service = createCalendarSyncService(createMockDb() as any);
-        const result  = await service.sync();
+        const result  = await service.sync({}, 'test-user');
         expect(result.nextPageToken).toBe('page_abc');
     });
 
     it('throws when fetchEvents itself fails', async () => {
         mockEventsList.mockRejectedValue(new Error('Auth error'));
         const service = createCalendarSyncService(createMockDb() as any);
-        await expect(service.sync()).rejects.toThrow(ExternalServiceError);
+        await expect(service.sync({}, 'test-user')).rejects.toThrow(ExternalServiceError);
     });
 });

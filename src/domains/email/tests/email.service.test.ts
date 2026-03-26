@@ -81,7 +81,7 @@ describe('emailService.list()', () => {
         vi.mocked(repo.findAll).mockResolvedValue(stored as any);
 
         const service = createEmailService(repo);
-        const result  = await service.list();
+        const result  = await service.list(undefined, 'test-user');
 
         expect(result).toHaveLength(2);
         expect(result[0]!.recipients).toEqual(['a@b.com']);
@@ -92,13 +92,13 @@ describe('emailService.list()', () => {
 
     it('passes filters through to the repository', async () => {
         const service = createEmailService(repo);
-        await service.list({ triaged: false, sender_email: 'alice@example.com', limit: 10 });
-        expect(repo.findAll).toHaveBeenCalledWith({ triaged: false, sender_email: 'alice@example.com', limit: 10 });
+        await service.list({ triaged: false, sender_email: 'alice@example.com', limit: 10 }, 'test-user');
+        expect(repo.findAll).toHaveBeenCalledWith({ triaged: false, sender_email: 'alice@example.com', limit: 10, userId: 'test-user' });
     });
 
     it('returns empty array when repository returns nothing', async () => {
         const service = createEmailService(repo);
-        expect(await service.list()).toEqual([]);
+        expect(await service.list(undefined, 'test-user')).toEqual([]);
     });
 });
 
@@ -115,7 +115,7 @@ describe('emailService.getById()', () => {
         vi.mocked(repo.findById).mockResolvedValue(stored as any);
 
         const service = createEmailService(repo);
-        const result  = await service.getById(stored.id);
+        const result  = await service.getById(stored.id, 'test-user');
 
         expect(result.id).toBe(stored.id);
         expect(result.labels).toEqual(['inbox', 'flagged']);
@@ -123,15 +123,15 @@ describe('emailService.getById()', () => {
 
     it('throws NotFoundError when email does not exist', async () => {
         const service = createEmailService(repo);
-        await expect(service.getById('missing_id')).rejects.toThrow(NotFoundError);
+        await expect(service.getById('missing_id', 'test-user')).rejects.toThrow(NotFoundError);
     });
 
     it('calls findById with the correct id', async () => {
         const stored = makeStoredEmail();
         vi.mocked(repo.findById).mockResolvedValue(stored as any);
         const service = createEmailService(repo);
-        await service.getById(stored.id);
-        expect(repo.findById).toHaveBeenCalledWith(stored.id);
+        await service.getById(stored.id, 'test-user');
+        expect(repo.findById).toHaveBeenCalledWith(stored.id, 'test-user');
     });
 });
 
@@ -147,13 +147,13 @@ describe('emailService.getByGmailId()', () => {
         const stored = makeStoredEmail();
         vi.mocked(repo.findByGmailId).mockResolvedValue(stored as any);
         const service = createEmailService(repo);
-        const result  = await service.getByGmailId(stored.gmail_id);
+        const result  = await service.getByGmailId(stored.gmail_id, 'test-user');
         expect(result.gmail_id).toBe(stored.gmail_id);
     });
 
     it('throws NotFoundError when not found', async () => {
         const service = createEmailService(repo);
-        await expect(service.getByGmailId('missing')).rejects.toThrow(NotFoundError);
+        await expect(service.getByGmailId('missing', 'test-user')).rejects.toThrow(NotFoundError);
     });
 });
 
@@ -169,14 +169,14 @@ describe('emailService.getThread()', () => {
         const thread = [makeStoredEmail(), makeStoredEmail(), makeStoredEmail()];
         vi.mocked(repo.findByThreadId).mockResolvedValue(thread as any);
         const service = createEmailService(repo);
-        const result  = await service.getThread('thread_abc');
+        const result  = await service.getThread('thread_abc', 'test-user');
         expect(result).toHaveLength(3);
-        expect(repo.findByThreadId).toHaveBeenCalledWith('thread_abc');
+        expect(repo.findByThreadId).toHaveBeenCalledWith('thread_abc', 'test-user');
     });
 
     it('returns empty array for unknown thread', async () => {
         const service = createEmailService(repo);
-        expect(await service.getThread('unknown')).toEqual([]);
+        expect(await service.getThread('unknown', 'test-user')).toEqual([]);
     });
 });
 
@@ -192,15 +192,15 @@ describe('emailService.listUntriaged()', () => {
         const untriaged = [makeStoredEmail({ triaged: false }), makeStoredEmail({ triaged: false })];
         vi.mocked(repo.findUntriaged).mockResolvedValue(untriaged as any);
         const service = createEmailService(repo);
-        const result  = await service.listUntriaged();
+        const result  = await service.listUntriaged('test-user');
         expect(result).toHaveLength(2);
         expect(result.every(e => e!.triaged === false)).toBe(true);
     });
 
     it('passes limit to repository', async () => {
         const service = createEmailService(repo);
-        await service.listUntriaged(25);
-        expect(repo.findUntriaged).toHaveBeenCalledWith(25);
+        await service.listUntriaged('test-user', 25);
+        expect(repo.findUntriaged).toHaveBeenCalledWith('test-user', 25);
     });
 });
 
@@ -219,7 +219,7 @@ describe('emailService.ingest()', () => {
         vi.mocked(repo.create).mockResolvedValue(created as any);
 
         const service = createEmailService(repo);
-        const result  = await service.ingest(input as any);
+        const result  = await service.ingest(input as any, 'test-user');
 
         expect(result.isDuplicate).toBe(false);
         expect(repo.create).toHaveBeenCalledOnce();
@@ -231,7 +231,7 @@ describe('emailService.ingest()', () => {
         vi.mocked(repo.findByContentHash).mockResolvedValue(existing as any);
 
         const service = createEmailService(repo);
-        const result  = await service.ingest(input as any);
+        const result  = await service.ingest(input as any, 'test-user');
 
         expect(result.isDuplicate).toBe(true);
         expect(repo.create).not.toHaveBeenCalled();
@@ -250,9 +250,9 @@ describe('emailService.ingest()', () => {
         vi.mocked(repo.create).mockResolvedValue(makeStoredEmail() as any);
 
         const service = createEmailService(repo);
-        await service.ingest(input as any);
+        await service.ingest(input as any, 'test-user');
 
-        expect(repo.findByContentHash).toHaveBeenCalledWith(expectedHash);
+        expect(repo.findByContentHash).toHaveBeenCalledWith(expectedHash, 'test-user');
     });
 
     it('serializes recipients and labels as JSON', async () => {
@@ -261,7 +261,7 @@ describe('emailService.ingest()', () => {
         vi.mocked(repo.create).mockResolvedValue(makeStoredEmail() as any);
 
         const service = createEmailService(repo);
-        await service.ingest(input as any);
+        await service.ingest(input as any, 'test-user');
 
         const arg = vi.mocked(repo.create).mock.calls[0][0];
         expect(arg.recipients).toBe('["a@b.com"]');
@@ -274,7 +274,7 @@ describe('emailService.ingest()', () => {
         vi.mocked(repo.create).mockResolvedValue(makeStoredEmail() as any);
 
         const service = createEmailService(repo);
-        await service.ingest(stripped as any);
+        await service.ingest(stripped as any, 'test-user');
 
         const arg = vi.mocked(repo.create).mock.calls[0][0];
         expect(arg.recipients).toBe('[]');
@@ -292,7 +292,7 @@ describe('emailService.update()', () => {
 
     it('throws NotFoundError when email does not exist', async () => {
         const service = createEmailService(repo);
-        await expect(service.update('missing', { triaged: true })).rejects.toThrow(NotFoundError);
+        await expect(service.update('missing', { triaged: true }, 'test-user')).rejects.toThrow(NotFoundError);
     });
 
     it('serializes labels to JSON', async () => {
@@ -302,9 +302,9 @@ describe('emailService.update()', () => {
         vi.mocked(repo.update).mockResolvedValue(updated as any);
 
         const service = createEmailService(repo);
-        await service.update(stored.id, { labels: ['done'] });
+        await service.update(stored.id, { labels: ['done'] }, 'test-user');
 
-        expect(repo.update).toHaveBeenCalledWith(stored.id, expect.objectContaining({ labels: '["done"]' }));
+        expect(repo.update).toHaveBeenCalledWith(stored.id, 'test-user', expect.objectContaining({ labels: '["done"]' }));
     });
 
     it('only passes defined fields to the repository', async () => {
@@ -314,9 +314,9 @@ describe('emailService.update()', () => {
         vi.mocked(repo.update).mockResolvedValue(updated as any);
 
         const service = createEmailService(repo);
-        await service.update(stored.id, { triaged: true });
+        await service.update(stored.id, { triaged: true }, 'test-user');
 
-        const arg = vi.mocked(repo.update).mock.calls[0][1];
+        const arg = vi.mocked(repo.update).mock.calls[0][2];
         expect(arg).not.toHaveProperty('body_summary');
         expect(arg).toHaveProperty('triaged', true);
     });
@@ -328,7 +328,7 @@ describe('emailService.update()', () => {
         vi.mocked(repo.update).mockResolvedValue(updated as any);
 
         const service = createEmailService(repo);
-        const result  = await service.update(stored.id, { triaged: true });
+        const result  = await service.update(stored.id, { triaged: true }, 'test-user');
 
         expect(result.labels).toEqual(['action_required']);
         expect(result.triaged).toBe(true);
@@ -345,7 +345,7 @@ describe('emailService.markTriaged()', () => {
 
     it('throws NotFoundError when email does not exist', async () => {
         const service = createEmailService(repo);
-        await expect(service.markTriaged('missing')).rejects.toThrow(NotFoundError);
+        await expect(service.markTriaged('missing', 'test-user')).rejects.toThrow(NotFoundError);
     });
 
     it('calls update with triaged: true', async () => {
@@ -355,9 +355,9 @@ describe('emailService.markTriaged()', () => {
         vi.mocked(repo.update).mockResolvedValue(updated as any);
 
         const service = createEmailService(repo);
-        await service.markTriaged(stored.id);
+        await service.markTriaged(stored.id, 'test-user');
 
-        expect(repo.update).toHaveBeenCalledWith(stored.id, { triaged: true });
+        expect(repo.update).toHaveBeenCalledWith(stored.id, 'test-user', { triaged: true });
     });
 
     it('returns the updated email with triaged: true', async () => {
@@ -367,7 +367,7 @@ describe('emailService.markTriaged()', () => {
         vi.mocked(repo.update).mockResolvedValue(updated as any);
 
         const service = createEmailService(repo);
-        const result  = await service.markTriaged(stored.id);
+        const result  = await service.markTriaged(stored.id, 'test-user');
         expect(result.triaged).toBe(true);
     });
 });
@@ -382,7 +382,7 @@ describe('emailService.delete()', () => {
 
     it('throws NotFoundError when email does not exist', async () => {
         const service = createEmailService(repo);
-        await expect(service.delete('missing')).rejects.toThrow(NotFoundError);
+        await expect(service.delete('missing', 'test-user')).rejects.toThrow(NotFoundError);
     });
 
     it('calls repository.delete with the correct id', async () => {
@@ -391,8 +391,8 @@ describe('emailService.delete()', () => {
         vi.mocked(repo.delete).mockResolvedValue(stored as any);
 
         const service = createEmailService(repo);
-        await service.delete(stored.id);
-        expect(repo.delete).toHaveBeenCalledWith(stored.id);
+        await service.delete(stored.id, 'test-user');
+        expect(repo.delete).toHaveBeenCalledWith(stored.id, 'test-user');
     });
 
     it('returns void on success', async () => {
@@ -401,7 +401,7 @@ describe('emailService.delete()', () => {
         vi.mocked(repo.delete).mockResolvedValue(stored as any);
 
         const service = createEmailService(repo);
-        expect(await service.delete(stored.id)).toBeUndefined();
+        expect(await service.delete(stored.id, 'test-user')).toBeUndefined();
     });
 });
 
@@ -416,12 +416,12 @@ describe('emailService.countUntriaged()', () => {
     it('returns the count from the repository', async () => {
         vi.mocked(repo.countUntriaged).mockResolvedValue(7);
         const service = createEmailService(repo);
-        expect(await service.countUntriaged()).toBe(7);
+        expect(await service.countUntriaged('test-user')).toBe(7);
     });
 
     it('returns 0 when there are no untriaged emails', async () => {
         const service = createEmailService(repo);
-        expect(await service.countUntriaged()).toBe(0);
+        expect(await service.countUntriaged('test-user')).toBe(0);
     });
 });
 
@@ -437,7 +437,7 @@ describe('emailService — deserialization', () => {
         const stored = makeStoredEmail({ recipients: '["a@b.com","c@d.com"]' });
         vi.mocked(repo.findById).mockResolvedValue(stored as any);
         const service = createEmailService(repo);
-        const result  = await service.getById(stored.id);
+        const result  = await service.getById(stored.id, 'test-user');
         expect(result.recipients).toEqual(['a@b.com', 'c@d.com']);
     });
 
@@ -445,7 +445,7 @@ describe('emailService — deserialization', () => {
         const stored = makeStoredEmail({ labels: '["inbox","flagged"]' });
         vi.mocked(repo.findById).mockResolvedValue(stored as any);
         const service = createEmailService(repo);
-        const result  = await service.getById(stored.id);
+        const result  = await service.getById(stored.id, 'test-user');
         expect(result.labels).toEqual(['inbox', 'flagged']);
     });
 
@@ -453,7 +453,7 @@ describe('emailService — deserialization', () => {
         const stored = makeStoredEmail({ recipients: 'not-valid-json' });
         vi.mocked(repo.findById).mockResolvedValue(stored as any);
         const service = createEmailService(repo);
-        const result  = await service.getById(stored.id);
+        const result  = await service.getById(stored.id, 'test-user');
         expect(result.recipients).toEqual([]);
     });
 
@@ -461,7 +461,7 @@ describe('emailService — deserialization', () => {
         const stored = makeStoredEmail({ labels: 'not-valid-json' });
         vi.mocked(repo.findById).mockResolvedValue(stored as any);
         const service = createEmailService(repo);
-        const result  = await service.getById(stored.id);
+        const result  = await service.getById(stored.id, 'test-user');
         expect(result.labels).toEqual(['inbox']);
     });
 });

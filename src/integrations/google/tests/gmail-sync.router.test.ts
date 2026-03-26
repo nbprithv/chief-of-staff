@@ -1,10 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Fastify from 'fastify';
-import { createGmailSyncRouter } from '../../../../src/integrations/google/gmail-sync.router.js';
 import { errorHandler } from '../../../../src/core/middleware/error-handler.js';
 import { ExternalServiceError } from '../../../../src/core/errors.js';
 import { config } from '../../../../src/core/config.js';
 import type { GmailSyncService } from '../../../../src/integrations/google/gmail-sync.service.js';
+
+// ── Mock session so all requests appear authenticated ─────────────────────────
+
+vi.mock('../../../../src/core/session.js', () => ({
+    getUserId:       vi.fn().mockReturnValue('test@example.com'),
+    setUserCookie:   vi.fn(),
+    clearUserCookie: vi.fn(),
+}));
+
+import { createGmailSyncRouter } from '../../../../src/integrations/google/gmail-sync.router.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock service factory
@@ -57,7 +66,7 @@ describe('POST /integrations/google/sync', () => {
             payload: { label: 'STARRED', max_emails: 30 },
         });
 
-        expect(service.sync).toHaveBeenCalledWith({ label: 'STARRED', maxEmails: 30 });
+        expect(service.sync).toHaveBeenCalledWith({ label: 'STARRED', maxEmails: 30 }, expect.any(String));
     });
 
     it('uses default label from GMAIL_LABEL env var and max_emails 50 when body is empty', async () => {
@@ -66,7 +75,7 @@ describe('POST /integrations/google/sync', () => {
         const app = await buildApp(service);
         await app.inject({ method: 'POST', url: '/integrations/google/sync', payload: {} });
 
-        expect(service.sync).toHaveBeenCalledWith({ label: config.GMAIL_LABEL, maxEmails: 50 });
+        expect(service.sync).toHaveBeenCalledWith({ label: config.GMAIL_LABEL, maxEmails: 50 }, expect.any(String));
     });
 
     it('uses defaults when no body is provided', async () => {
@@ -75,7 +84,7 @@ describe('POST /integrations/google/sync', () => {
         const app = await buildApp(service);
         await app.inject({ method: 'POST', url: '/integrations/google/sync' });
 
-        expect(service.sync).toHaveBeenCalledWith({ label: config.GMAIL_LABEL, maxEmails: 50 });
+        expect(service.sync).toHaveBeenCalledWith({ label: config.GMAIL_LABEL, maxEmails: 50 }, expect.any(String));
     });
 
     it('returns 400 when max_emails exceeds 100', async () => {

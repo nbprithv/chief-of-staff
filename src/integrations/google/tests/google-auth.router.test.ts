@@ -3,6 +3,18 @@ import Fastify from 'fastify';
 import { errorHandler } from '../../../core/middleware/error-handler.js';
 import { ExternalServiceError } from '../../../core/errors.js';
 
+// ── Mock session ──────────────────────────────────────────────────────────────
+
+const mockGetUserId      = vi.fn().mockReturnValue('test@example.com');
+const mockSetUserCookie  = vi.fn();
+const mockClearUserCookie = vi.fn();
+
+vi.mock('../../../core/session.js', () => ({
+    getUserId:       mockGetUserId,
+    setUserCookie:   mockSetUserCookie,
+    clearUserCookie: mockClearUserCookie,
+}));
+
 // ── Mock OAuth client functions ───────────────────────────────────────────────
 
 const mockGenerateOAuthState    = vi.fn();
@@ -12,8 +24,10 @@ const mockExchangeCodeForTokens = vi.fn();
 const mockGetConnectedUser      = vi.fn();
 const mockRevokeAccess          = vi.fn();
 const mockLoadTokens            = vi.fn();
+const mockCreateOAuthClient     = vi.fn().mockReturnValue({ setCredentials: vi.fn() });
 
 vi.mock('../google-oauth.client.js', () => ({
+    createOAuthClient:     mockCreateOAuthClient,
     generateOAuthState:    mockGenerateOAuthState,
     verifyOAuthState:      mockVerifyOAuthState,
     getAuthorizationUrl:   mockGetAuthorizationUrl,
@@ -23,7 +37,33 @@ vi.mock('../google-oauth.client.js', () => ({
 }));
 
 vi.mock('../token-store.js', () => ({
-    loadTokens: mockLoadTokens,
+    loadTokens:  mockLoadTokens,
+    saveTokens:  vi.fn(),
+    clearTokens: vi.fn(),
+}));
+
+vi.mock('../../../db/client.js', () => ({
+    db: {
+        delete: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([]),
+        }),
+    },
+}));
+
+vi.mock('../gmail-sync.service.js', () => ({
+    gmailSyncService: { sync: vi.fn().mockResolvedValue({}) },
+}));
+
+vi.mock('../calendar-sync.service.js', () => ({
+    calendarSyncService: { sync: vi.fn().mockResolvedValue({}) },
+}));
+
+vi.mock('googleapis', () => ({
+    google: {
+        oauth2: vi.fn().mockReturnValue({
+            userinfo: { get: vi.fn().mockResolvedValue({ data: { email: 'user@gmail.com', name: 'Test User' } }) },
+        }),
+    },
 }));
 
 const { googleAuthRouter } = await import('../google-auth.router.js');
@@ -86,7 +126,10 @@ describe('GET /integrations/google/auth', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('GET /integrations/google/callback', () => {
-    beforeEach(() => { vi.clearAllMocks(); });
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockCreateOAuthClient.mockReturnValue({ setCredentials: vi.fn() });
+    });
 
     // Helper: prime the router's pendingStates map by going through /auth first
     async function primeState(app: Awaited<ReturnType<typeof buildApp>>, state: string) {
@@ -226,7 +269,7 @@ describe('GET /integrations/google/callback', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('GET /integrations/google/status', () => {
-    beforeEach(() => { vi.clearAllMocks(); });
+    beforeEach(() => { vi.clearAllMocks(); mockGetUserId.mockReturnValue('test@example.com'); });
 
     it('returns connected:false when no tokens are stored', async () => {
         mockLoadTokens.mockReturnValue(null);
@@ -269,7 +312,7 @@ describe('GET /integrations/google/status', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('DELETE /integrations/google/disconnect', () => {
-    beforeEach(() => { vi.clearAllMocks(); });
+    beforeEach(() => { vi.clearAllMocks(); mockGetUserId.mockReturnValue('test@example.com'); });
 
     it('returns disconnected:true on success', async () => {
         mockRevokeAccess.mockResolvedValue(undefined);

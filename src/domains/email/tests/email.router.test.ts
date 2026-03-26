@@ -1,9 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Fastify from 'fastify';
-import { createEmailRouter } from '../../../../src/domains/email/email.router.js';
 import { NotFoundError, ValidationError } from '../../../../src/core/errors.js';
 import { errorHandler } from '../../../../src/core/middleware/error-handler.js';
 import type { EmailService } from '../../../../src/domains/email/email.service.js';
+
+// ── Mock session so all requests appear authenticated ─────────────────────────
+
+vi.mock('../../../../src/core/session.js', () => ({
+    getUserId:       vi.fn().mockReturnValue('test@example.com'),
+    setUserCookie:   vi.fn(),
+    clearUserCookie: vi.fn(),
+}));
+
+import { createEmailRouter } from '../../../../src/domains/email/email.router.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock service factory
@@ -79,25 +88,25 @@ describe('GET /emails', () => {
     it('passes triaged=true filter to service', async () => {
         const app = await buildApp(service);
         await app.inject({ method: 'GET', url: '/emails?triaged=true' });
-        expect(service.list).toHaveBeenCalledWith(expect.objectContaining({ triaged: true }));
+        expect(service.list).toHaveBeenCalledWith(expect.objectContaining({ triaged: true }), expect.any(String));
     });
 
     it('passes triaged=false filter to service', async () => {
         const app = await buildApp(service);
         await app.inject({ method: 'GET', url: '/emails?triaged=false' });
-        expect(service.list).toHaveBeenCalledWith(expect.objectContaining({ triaged: false }));
+        expect(service.list).toHaveBeenCalledWith(expect.objectContaining({ triaged: false }), expect.any(String));
     });
 
     it('passes sender_email filter to service', async () => {
         const app = await buildApp(service);
         await app.inject({ method: 'GET', url: '/emails?sender_email=alice@example.com' });
-        expect(service.list).toHaveBeenCalledWith(expect.objectContaining({ sender_email: 'alice@example.com' }));
+        expect(service.list).toHaveBeenCalledWith(expect.objectContaining({ sender_email: 'alice@example.com' }), expect.any(String));
     });
 
     it('passes limit and offset as integers', async () => {
         const app = await buildApp(service);
         await app.inject({ method: 'GET', url: '/emails?limit=10&offset=20' });
-        expect(service.list).toHaveBeenCalledWith(expect.objectContaining({ limit: 10, offset: 20 }));
+        expect(service.list).toHaveBeenCalledWith(expect.objectContaining({ limit: 10, offset: 20 }), expect.any(String));
     });
 
     it('does not pass triaged when absent', async () => {
@@ -128,7 +137,7 @@ describe('GET /emails/untriaged', () => {
     it('passes limit to service when provided', async () => {
         const app = await buildApp(service);
         await app.inject({ method: 'GET', url: '/emails/untriaged?limit=5' });
-        expect(service.listUntriaged).toHaveBeenCalledWith(5);
+        expect(service.listUntriaged).toHaveBeenCalledWith(expect.any(String), 5);
     });
 });
 
@@ -145,7 +154,7 @@ describe('GET /emails/thread/:thread_id', () => {
         const res = await (await buildApp(service)).inject({ method: 'GET', url: '/emails/thread/t_abc' });
         expect(res.statusCode).toBe(200);
         expect(res.json().emails).toHaveLength(2);
-        expect(service.getThread).toHaveBeenCalledWith('t_abc');
+        expect(service.getThread).toHaveBeenCalledWith('t_abc', expect.any(String));
     });
 });
 
@@ -276,7 +285,7 @@ describe('POST /emails/:id/triage', () => {
         vi.mocked(service.markTriaged).mockResolvedValue(email as any);
         const app = await buildApp(service);
         await app.inject({ method: 'POST', url: `/emails/${email.id}/triage` });
-        expect(service.markTriaged).toHaveBeenCalledWith(email.id);
+        expect(service.markTriaged).toHaveBeenCalledWith(email.id, expect.any(String));
     });
 });
 
@@ -306,6 +315,6 @@ describe('DELETE /emails/:id', () => {
         vi.mocked(service.delete).mockResolvedValue(undefined);
         const app = await buildApp(service);
         await app.inject({ method: 'DELETE', url: '/emails/target_id' });
-        expect(service.delete).toHaveBeenCalledWith('target_id');
+        expect(service.delete).toHaveBeenCalledWith('target_id', expect.any(String));
     });
 });
