@@ -17,6 +17,7 @@ function createTestDb() {
   sqlite.exec(`
     CREATE TABLE emails (
       id           TEXT PRIMARY KEY,
+      user_id      TEXT NOT NULL DEFAULT '',
       gmail_id     TEXT NOT NULL UNIQUE,
       thread_id    TEXT,
       content_hash TEXT NOT NULL UNIQUE,

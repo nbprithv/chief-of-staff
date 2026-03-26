@@ -17,6 +17,7 @@ function createTestDb() {
     sqlite.exec(`
     CREATE TABLE nodes (
       id              TEXT PRIMARY KEY,
+      user_id         TEXT NOT NULL DEFAULT '',
       parent_id       TEXT REFERENCES nodes(id) ON DELETE CASCADE,
       type            TEXT NOT NULL CHECK(type IN ('idea','project','todo','event','grocery_item','habit')),
       title           TEXT NOT NULL,
@@ -41,6 +42,7 @@ function createTestDb() {
 
     CREATE TABLE emails (
       id           TEXT PRIMARY KEY,
+      user_id      TEXT NOT NULL DEFAULT '',
       gmail_id     TEXT NOT NULL UNIQUE,
       thread_id    TEXT,
       content_hash TEXT NOT NULL UNIQUE,
