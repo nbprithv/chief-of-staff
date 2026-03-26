@@ -2,6 +2,8 @@ import { api } from './api.js';
 
 const DIGEST_QUERY = '(in:sent OR in:drafts) subject:"Galloway School Digest"';
 
+const emailsById = new Map();
+
 // ── Navigation ─────────────────────────────────────────────────────────────────
 
 function switchView(name) {
@@ -170,6 +172,7 @@ async function loadRecentDigests() {
             return;
         }
 
+        emails.forEach(e => emailsById.set(e.id, e));
         container.innerHTML = emails.map(renderDigestRow).join('');
     } catch {
         container.innerHTML = emptyState('Could not load digests');
@@ -198,6 +201,7 @@ async function loadDigests() {
             return;
         }
 
+        emails.forEach(e => emailsById.set(e.id, e));
         container.innerHTML = emails.map(renderEmailRow).join('');
     } catch {
         container.innerHTML = emptyState('Could not load digests');
@@ -333,7 +337,7 @@ function renderDigestRow(email) {
     const date = email.received_at
         ? new Date(email.received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
         : '';
-    return `<div class="digest-row">
+    return `<div class="digest-row" data-id="${escHtml(email.id)}">
         <div class="digest-date">${date}</div>
         <div class="digest-subject">${escHtml(email.subject || '(no subject)')}</div>
     </div>`;
@@ -346,7 +350,7 @@ function renderEmailRow(email) {
     const preview = email.body_raw
         ? email.body_raw.replace(/\s+/g, ' ').trim().slice(0, 100)
         : '';
-    return `<div class="email-row">
+    return `<div class="email-row" data-id="${escHtml(email.id)}">
         <div>
             <div class="email-subject">${escHtml(email.subject || '(no subject)')}</div>
             ${preview ? `<div class="email-preview">${escHtml(preview)}</div>` : ''}
@@ -371,6 +375,73 @@ function safeJson(str) {
     try { return JSON.parse(str || '{}'); } catch { return {}; }
 }
 
+// ── Digest modal ───────────────────────────────────────────────────────────────
+
+function isHtmlEmail(body) {
+    return /<(html|body|div|p|table|span)\b/i.test(body || '');
+}
+
+function openDigestModal(email) {
+    if (!email) return;
+
+    document.getElementById('modal-subject').textContent = email.subject || '(no subject)';
+
+    const parts = [];
+    if (email.sender_name || email.sender_email) {
+        parts.push(`From: ${email.sender_name || email.sender_email}`);
+    }
+    if (email.received_at) {
+        parts.push(new Date(email.received_at).toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        }));
+    }
+    document.getElementById('modal-meta').textContent = parts.join('  ·  ');
+
+    const body   = email.body_raw || email.body_summary || '(no content)';
+    const modal  = document.getElementById('digest-modal');
+    const iframe = document.getElementById('modal-iframe');
+
+    if (isHtmlEmail(body)) {
+        iframe.srcdoc = body;
+        modal.classList.add('html-mode');
+    } else {
+        document.getElementById('modal-body').textContent = body;
+        modal.classList.remove('html-mode');
+    }
+
+    modal.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDigestModal() {
+    const modal = document.getElementById('digest-modal');
+    modal.classList.remove('is-open', 'html-mode');
+    document.getElementById('modal-iframe').srcdoc = '';
+    document.body.style.overflow = '';
+}
+
+function initDigestModal() {
+    document.getElementById('modal-close')?.addEventListener('click', closeDigestModal);
+
+    document.getElementById('digest-modal')?.addEventListener('click', e => {
+        if (e.target.id === 'digest-modal') closeDigestModal();
+    });
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeDigestModal();
+    });
+
+    document.getElementById('dash-digests')?.addEventListener('click', e => {
+        const row = e.target.closest('[data-id]');
+        if (row) openDigestModal(emailsById.get(row.dataset.id));
+    });
+
+    document.getElementById('digests-list')?.addEventListener('click', e => {
+        const row = e.target.closest('[data-id]');
+        if (row) openDigestModal(emailsById.get(row.dataset.id));
+    });
+}
+
 // ── Boot ───────────────────────────────────────────────────────────────────────
 
 async function boot() {
@@ -378,6 +449,7 @@ async function boot() {
     initNav();
     initSyncButtons();
     initSignOut();
+    initDigestModal();
 
     await Promise.all([
         loadUser(),

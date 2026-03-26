@@ -131,6 +131,19 @@
     </main>
 </div>
 
+<!-- ── Digest modal ───────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="digest-modal">
+    <div class="modal-panel">
+        <div class="modal-header">
+            <div class="modal-title" id="modal-subject"></div>
+            <button class="modal-close" id="modal-close">✕</button>
+        </div>
+        <div class="modal-meta" id="modal-meta"></div>
+        <div class="modal-body" id="modal-body"></div>
+        <iframe class="modal-iframe" id="modal-iframe" sandbox="allow-same-origin" title="Email content"></iframe>
+    </div>
+</div>
+
 <script type="module" src="/js/app.js"></script>
 </body>
 </html>
