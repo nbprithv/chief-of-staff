@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Background -->
+  <rect width="32" height="32" rx="5" fill="#1c1a17"/>
+  <!-- Serif "A" — drawn as filled paths so it renders reliably at all sizes -->
+  <!-- Left stroke -->
+  <path d="M7 27 L14.5 6 L16 6 L16 8.5 L9.8 27 Z" fill="#f0ece4"/>
+  <!-- Right stroke -->
+  <path d="M25 27 L17.5 6 L16 6 L16 8.5 L22.2 27 Z" fill="#f0ece4"/>
+  <!-- Crossbar -->
+  <rect x="10.5" y="17.5" width="11" height="2.2" rx="0.5" fill="#f0ece4"/>
+  <!-- Accent bar -->
+  <rect x="5" y="29.5" width="22" height="2" rx="1" fill="#c4511a"/>
+</svg>
