@@ -7,8 +7,8 @@ import { buildApp } from '../src/app.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // In the Vercel bundle api/index.js sits at the root; public/ is copied alongside it
-const publicDir       = path.join(__dirname, '../public');
-const migrationsFolder = path.join(__dirname, '../drizzle');
+const publicDir        = path.join(__dirname, '../public');
+const migrationsFolder = path.join(process.cwd(), 'drizzle');
 
 // Cache the app instance across warm invocations
 let appReady: Awaited<ReturnType<typeof buildApp>> | null = null;
