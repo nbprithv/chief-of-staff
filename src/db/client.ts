@@ -1,20 +1,22 @@
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { createClient } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/libsql';
 import { mkdirSync } from 'fs';
-import { dirname } from 'path';
 import { config } from '../core/config.js';
 import { logger } from '../core/logger.js';
 import * as schema from './schema/index.js';
 
-// Ensure the data directory exists before opening the file
-mkdirSync(dirname(config.DB_PATH), { recursive: true });
+// For local file URLs, ensure the data directory exists
+if (config.TURSO_DATABASE_URL.startsWith('file:')) {
+    const filePath = config.TURSO_DATABASE_URL.replace(/^file:/, '');
+    const dir = filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : '.';
+    if (dir) mkdirSync(dir, { recursive: true });
+}
 
-const sqlite = new Database(config.DB_PATH);
+const client = createClient({
+    url:       config.TURSO_DATABASE_URL,
+    authToken: config.TURSO_AUTH_TOKEN,
+});
 
-// WAL mode — better performance for concurrent reads alongside writes
-sqlite.pragma('journal_mode = WAL');
-sqlite.pragma('foreign_keys = ON');
+export const db = drizzle(client, { schema });
 
-export const db = drizzle(sqlite, { schema });
-
-logger.info('SQLite connected', { path: config.DB_PATH });
+logger.info('Database connected', { url: config.TURSO_DATABASE_URL });

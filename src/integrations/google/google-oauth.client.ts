@@ -1,10 +1,10 @@
 import { google } from 'googleapis';
 import { createHash, randomBytes } from 'crypto';
-import { requireGoogleConfig, config } from '../../core/config';
-import { logger } from '../../core/logger';
-import { ExternalServiceError } from '../../core/errors';
-import { loadTokens, saveTokens, clearTokens, isExpired } from './token-store';
-import type { TokenSet } from './token-store';
+import { requireGoogleConfig, config } from '../../core/config.js';
+import { logger } from '../../core/logger.js';
+import { ExternalServiceError } from '../../core/errors.js';
+import { loadTokens, saveTokens, clearTokens, isExpired } from './token-store.js';
+import type { TokenSet } from './token-store.js';
 
 // Gmail + Calendar readonly + user info
 export const GMAIL_SCOPES = [
@@ -18,16 +18,11 @@ export const GMAIL_SCOPES = [
 
 export function createOAuthClient() {
     const { clientId, clientSecret, redirectUri } = requireGoogleConfig();
-
     return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
 // ── State parameter (CSRF protection) ─────────────────────────────────────────
 
-/**
- * Generates a signed state token to protect the OAuth callback.
- * Format: <random_nonce>.<hmac>
- */
 export function generateOAuthState(): string {
     const nonce = randomBytes(16).toString('hex');
     const sig   = createHash('sha256')
@@ -52,9 +47,9 @@ export function verifyOAuthState(state: string): boolean {
 export function getAuthorizationUrl(state: string): string {
     const client = createOAuthClient();
     return client.generateAuthUrl({
-        access_type:  'offline',   // gets us a refresh_token
-        prompt:       'consent',   // forces refresh_token to be returned even if previously granted
-        scope:        GMAIL_SCOPES,
+        access_type: 'offline',
+        prompt:      'consent',
+        scope:       GMAIL_SCOPES,
         state,
     });
 }
@@ -81,7 +76,7 @@ export async function exchangeCodeForTokens(code: string): Promise<TokenSet> {
             scope:         tokens.scope         ?? GMAIL_SCOPES.join(' '),
         };
 
-        saveTokens(tokenSet);
+        await saveTokens(tokenSet);
         logger.info('Google OAuth complete — tokens saved');
         return tokenSet;
     } catch (err: any) {
@@ -93,39 +88,35 @@ export async function exchangeCodeForTokens(code: string): Promise<TokenSet> {
 // ── Get an authenticated client (auto-refreshes if needed) ────────────────────
 
 export async function getAuthenticatedClient() {
-    const tokens = loadTokens();
+    const tokenSet = await loadTokens();
 
-    if (!tokens) {
+    if (!tokenSet) {
         throw new ExternalServiceError(
             'Google OAuth',
-            'Not authenticated. Visit /integrations/google/auth to connect Gmail.'
+            'Not authenticated. Visit /integrations/google/auth to connect.'
         );
     }
 
     const client = createOAuthClient();
-    client.setCredentials(tokens);
+    client.setCredentials(tokenSet);
 
-    // Refresh if expired
-    if (isExpired(tokens)) {
+    if (isExpired(tokenSet)) {
         logger.debug('Access token expired — refreshing');
         try {
             const { credentials } = await client.refreshAccessToken();
             const refreshed: TokenSet = {
                 access_token:  credentials.access_token  ?? '',
-                refresh_token: credentials.refresh_token ?? tokens.refresh_token,
+                refresh_token: credentials.refresh_token ?? tokenSet.refresh_token,
                 expiry_date:   credentials.expiry_date   ?? Date.now() + 3600 * 1000,
                 token_type:    credentials.token_type    ?? 'Bearer',
-                scope:         credentials.scope         ?? tokens.scope,
+                scope:         credentials.scope         ?? tokenSet.scope,
             };
-            saveTokens(refreshed);
+            await saveTokens(refreshed);
             client.setCredentials(refreshed);
             logger.debug('Access token refreshed');
         } catch (err: any) {
             logger.error('Token refresh failed', { error: err.message });
-            throw new ExternalServiceError(
-                'Google OAuth',
-                'Token refresh failed. Re-authorize at /integrations/google/auth'
-            );
+            throw new ExternalServiceError('Google OAuth', 'Token refresh failed. Re-authorize at /integrations/google/auth');
         }
     }
 
@@ -135,8 +126,8 @@ export async function getAuthenticatedClient() {
 // ── Get authenticated user info ────────────────────────────────────────────────
 
 export async function getConnectedUser() {
-    const client  = await getAuthenticatedClient();
-    const oauth2  = google.oauth2({ version: 'v2', auth: client });
+    const client   = await getAuthenticatedClient();
+    const oauth2   = google.oauth2({ version: 'v2', auth: client });
     const { data } = await oauth2.userinfo.get();
     return { email: data.email, name: data.name, picture: data.picture };
 }
@@ -144,15 +135,15 @@ export async function getConnectedUser() {
 // ── Disconnect ─────────────────────────────────────────────────────────────────
 
 export async function revokeAccess() {
-    const tokens = loadTokens();
-    if (tokens?.access_token) {
+    const tokenSet = await loadTokens();
+    if (tokenSet?.access_token) {
         const client = createOAuthClient();
         try {
-            await client.revokeToken(tokens.access_token);
+            await client.revokeToken(tokenSet.access_token);
         } catch {
             // Best-effort — still clear locally even if revocation fails
         }
     }
-    clearTokens();
+    await clearTokens();
     logger.info('Google access revoked');
 }

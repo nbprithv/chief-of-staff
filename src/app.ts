@@ -3,9 +3,6 @@ import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import staticPlugin from '@fastify/static';
-import { config } from './core/config.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { logger } from './core/logger.js';
 import { errorHandler } from './core/middleware/error-handler.js';
 import { loadTokens } from './integrations/google/token-store.js';
@@ -20,60 +17,46 @@ import { googleAuthRouter }   from './integrations/google/google-auth.router.js'
 import { gmailSyncRouter }    from './integrations/google/gmail-sync.router.js';
 import { calendarSyncRouter } from './integrations/google/calendar-sync.router.js';
 
-async function bootstrap() {
-  const app = Fastify({ logger: false });
+export async function buildApp(options: { publicDir?: string } = {}) {
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const publicDir = options.publicDir ?? path.join(__dirname, '../public');
 
-  await app.register(cors, { origin: true });
+    const app = Fastify({ logger: false });
 
-  await app.register(staticPlugin, {
-    root: path.join(__dirname, '../public'),
-    prefix: '/',
-  });
+    await app.register(cors, { origin: true });
 
-  // ── Auth-gated entry point ────────────────────────────────────────────────
-  // Redirect to /login if no Google tokens are stored yet.
-  app.get('/', async (_req, reply) => {
-    const tokens = loadTokens();
-    if (!tokens) {
-      return reply.redirect('/login');
-    }
-    return reply.sendFile('index.html');
-  });
+    await app.register(staticPlugin, {
+        root:   publicDir,
+        prefix: '/',
+    });
 
-  // /login — show the login page, or redirect to / if already authenticated.
-  app.get('/login', async (_req, reply) => {
-    const tokens = loadTokens();
-    if (tokens) {
-      return reply.redirect('/');
-    }
-    return reply.sendFile('login.html');
-  });
+    // ── Auth-gated entry point ────────────────────────────────────────────────
+    app.get('/', async (_req, reply) => {
+        const tokens = await loadTokens();
+        if (!tokens) return reply.redirect('/login');
+        return reply.sendFile('index.html');
+    });
 
-  app.get('/health', async (_req, reply) => {
-    return reply.send({ status: 'ok', db: 'sqlite' });
-  });
+    app.get('/login', async (_req, reply) => {
+        const tokens = await loadTokens();
+        if (tokens) return reply.redirect('/');
+        return reply.sendFile('login.html');
+    });
 
-  // Google OAuth + sync routes live at root (no /api/v1 prefix) because
-  // the auth flow uses browser redirects and the UI links to them directly.
-  await app.register(googleAuthRouter);
-  await app.register(gmailSyncRouter);
-  await app.register(calendarSyncRouter);
+    app.get('/health', async (_req, reply) => {
+        return reply.send({ status: 'ok', db: 'libsql' });
+    });
 
-  await app.register(async (v1) => {
-    await v1.register(tasksRouter);
-    await v1.register(emailRouter);
-  }, { prefix: '/api/v1' });
+    await app.register(googleAuthRouter);
+    await app.register(gmailSyncRouter);
+    await app.register(calendarSyncRouter);
 
-  app.setErrorHandler(errorHandler);
+    await app.register(async (v1) => {
+        await v1.register(tasksRouter);
+        await v1.register(emailRouter);
+    }, { prefix: '/api/v1' });
 
-  try {
-    await app.listen({ port: config.PORT, host: '127.0.0.1' });
-    logger.info('API server running', { port: config.PORT });
-    logger.info('Drizzle Studio', { cmd: 'npm run db:studio' });
-  } catch (err) {
-    logger.error('Failed to start server', err);
-    process.exit(1);
-  }
+    app.setErrorHandler(errorHandler);
+
+    return app;
 }
-
-bootstrap();

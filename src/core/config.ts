@@ -4,7 +4,9 @@ import { z } from 'zod';
 const schema = z.object({
   PORT:               z.coerce.number().default(3000),
   NODE_ENV:           z.enum(['development', 'production', 'test']).default('development'),
-  DB_PATH:            z.string().default('./data/assistant.db'),
+  // Turso (libsql) — use file:./data/assistant.db locally, libsql://... on Vercel
+  TURSO_DATABASE_URL: z.string().default('file:./data/assistant.db'),
+  TURSO_AUTH_TOKEN:   z.string().optional(),
   SESSION_SECRET:     z.string().default('dev-secret-change-in-production'),
   GOOGLE_CLIENT_ID:      z.string().optional(),
   GOOGLE_CLIENT_SECRET:  z.string().optional(),
