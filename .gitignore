@@ -10,7 +10,7 @@ node_modules/
 pocketbase/pocketbase
 pocketbase/pocketbase.exe
 pocketbase/pb_data/
-drizzle/
+drizzle/meta/*.snapshot.json
 
 # Build output
 dist/
