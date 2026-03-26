@@ -186,11 +186,20 @@ export function createGmailSyncService(repository: EmailRepository = createEmail
 
             for (const id of ids) {
                 try {
+                    // Fast path: skip if this exact Gmail message is already stored.
+                    const existingById = await repository.findByGmailId(id, userId);
+                    if (existingById) {
+                        result.duplicates++;
+                        logger.debug('Duplicate email skipped (gmail_id)', { gmail_id: id });
+                        continue;
+                    }
+
                     const email = await this.fetchMessage(id, userId);
                     result.fetched++;
 
+                    // Hash excludes gmail_id so forwarded copies of the same digest
+                    // (different message IDs, identical content) hash identically.
                     const content_hash = hashEmail({
-                        gmail_id:     email.gmail_id,
                         sender_email: email.sender_email,
                         received_at:  email.received_at,
                         subject:      email.subject,
@@ -200,7 +209,7 @@ export function createGmailSyncService(repository: EmailRepository = createEmail
                     const existing = await repository.findByContentHash(content_hash, userId);
                     if (existing) {
                         result.duplicates++;
-                        logger.debug('Duplicate email skipped', { gmail_id: id });
+                        logger.debug('Duplicate email skipped (content_hash)', { gmail_id: id });
                         continue;
                     }
 

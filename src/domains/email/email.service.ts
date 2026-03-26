@@ -13,6 +13,7 @@ export function createEmailService(repository: EmailRepository = defaultReposito
             triaged?:      boolean;
             sender_email?: string;
             label?:        string;
+            since?:        string;
             limit?:        number;
             offset?:       number;
         } | undefined, userId: string) {

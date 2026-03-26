@@ -4,6 +4,14 @@ const DIGEST_QUERY = '(in:sent OR in:drafts) subject:"Galloway School Digest"';
 
 const emailsById = new Map();
 
+/** ISO datetime string for 20 days ago — used to filter email fetches. */
+function since20Days() {
+    const d = new Date();
+    d.setDate(d.getDate() - 20);
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+}
+
 // ── Navigation ─────────────────────────────────────────────────────────────────
 
 function switchView(name) {
@@ -165,7 +173,7 @@ async function loadRecentDigests() {
     if (!container) return;
 
     try {
-        const { emails = [] } = await api.emails({ limit: 8 });
+        const { emails = [] } = await api.emails({ limit: 8, since: since20Days() });
 
         if (emails.length === 0) {
             container.innerHTML = emptyState('No digests — sync to load');
@@ -192,7 +200,7 @@ async function loadDigests() {
     if (!container) return;
 
     try {
-        const { emails = [] } = await api.emails({ limit: 500 });
+        const { emails = [] } = await api.emails({ limit: 500, since: since20Days() });
 
         if (countEl) countEl.textContent = `${emails.length} digest${emails.length !== 1 ? 's' : ''}`;
 

@@ -1,4 +1,4 @@
-import { eq, desc, and, sql } from 'drizzle-orm';
+import { eq, desc, and, sql, gte } from 'drizzle-orm';
 import { db as defaultDb } from '../../db/client.js';
 import { emails } from '../../db/schema/emails.schema.js';
 import type { NewEmail } from '../../db/schema/emails.schema.js';
@@ -13,6 +13,7 @@ export function createEmailRepository(db: Db = defaultDb) {
             triaged?:      boolean;
             sender_email?: string;
             label?:        string;
+            since?:        string; // ISO date — only return emails received on or after this
             limit?:        number;
             offset?:       number;
         }) {
@@ -31,6 +32,9 @@ export function createEmailRepository(db: Db = defaultDb) {
                 conditions.push(
                     sql`json_each.value = ${filters.label}`,
                 );
+            }
+            if (filters?.since) {
+                conditions.push(gte(emails.received_at, filters.since));
             }
 
             return db

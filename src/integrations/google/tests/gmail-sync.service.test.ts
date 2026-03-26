@@ -350,7 +350,7 @@ describe('gmailSyncService.sync()', () => {
         mockMessagesGet
             .mockResolvedValueOnce({ data: makeGmailMessage({ id: 'msg1' }) })
             .mockResolvedValueOnce({ data: makeGmailMessage({ id: 'msg2' }) });
-        // First is new, second is a duplicate
+        // First is new, second is a content-hash duplicate
         vi.mocked(repo.findByContentHash)
             .mockResolvedValueOnce(null)
             .mockResolvedValueOnce({ id: 'existing' } as any);
@@ -361,6 +361,26 @@ describe('gmailSyncService.sync()', () => {
         expect(result.stored).toBe(1);
         expect(result.duplicates).toBe(1);
         expect(repo.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips duplicate emails (gmail_id match) without fetching message body', async () => {
+        const repo = createMockRepo();
+        mockMessagesList.mockResolvedValue({
+            data: { messages: [{ id: 'msg1' }, { id: 'msg2' }] },
+        });
+        // msg1 already in DB by gmail_id; msg2 is new
+        vi.mocked(repo.findByGmailId)
+            .mockResolvedValueOnce({ id: 'existing' } as any)
+            .mockResolvedValueOnce(null);
+        mockMessagesGet.mockResolvedValue({ data: makeGmailMessage({ id: 'msg2' }) });
+
+        const service = createGmailSyncService(repo as any);
+        const result  = await service.sync({}, 'test-user');
+
+        expect(result.duplicates).toBe(1);
+        expect(result.stored).toBe(1);
+        // fetchMessage should only be called once (for msg2)
+        expect(mockMessagesGet).toHaveBeenCalledTimes(1);
     });
 
     it('counts errors when a message fetch fails and continues processing', async () => {

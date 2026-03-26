@@ -23,6 +23,7 @@ export function createEmailRouter(service: EmailService = defaultService) {
                 triaged:      q.triaged !== undefined ? q.triaged === 'true' : undefined,
                 sender_email: q.sender_email,
                 label:        q.label,
+                since:        q.since,
                 limit:        q.limit  ? parseInt(q.limit)  : undefined,
                 offset:       q.offset ? parseInt(q.offset) : undefined,
             }, userId);

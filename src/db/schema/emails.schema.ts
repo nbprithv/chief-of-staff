@@ -8,8 +8,9 @@ export const emails = sqliteTable('emails', {
   gmail_id:     text('gmail_id').notNull().unique(),
   thread_id:    text('thread_id'),
 
-  // SHA-256 of (gmail_id | sender_email | received_at | subject | body_raw).
-  // UNIQUE constraint prevents processing the same email twice.
+  // SHA-256 of (sender_email | received_at | subject | body_raw).
+  // Intentionally excludes gmail_id so forwarded copies of the same
+  // digest (different gmail_id, identical content) are treated as duplicates.
   content_hash: text('content_hash').notNull().unique(),
 
   subject:      text('subject').notNull(),
@@ -33,9 +34,11 @@ export type NewEmail = typeof emails.$inferInsert;
 /**
  * Produces a stable 64-char hex hash for an incoming email.
  * Used to populate content_hash and check for duplicates before insert.
+ * gmail_id is deliberately excluded so that forwarded copies of the same
+ * digest (which arrive with different message IDs) hash identically.
  */
 export function hashEmail(fields: {
-  gmail_id:     string;
+  gmail_id?:    string; // accepted but not included in the hash
   sender_email: string;
   received_at:  string;
   subject:      string;
@@ -43,7 +46,6 @@ export function hashEmail(fields: {
 }): string {
   return createHash('sha256')
     .update([
-      fields.gmail_id,
       fields.sender_email,
       fields.received_at,
       fields.subject,

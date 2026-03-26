@@ -83,10 +83,13 @@ describe('hashEmail()', () => {
     expect(h1).toBe(h2);
   });
 
-  it('produces different hashes when gmail_id differs', () => {
+  it('produces the same hash when only gmail_id differs (forwarded-copy detection)', () => {
     const h1 = hashEmail(BASE_EMAIL);
     const h2 = hashEmail({ ...BASE_EMAIL, gmail_id: 'msg_different' });
-    expect(h1).not.toBe(h2);
+    // gmail_id is intentionally excluded from the hash so that forwarded
+    // copies of the same digest (different message ID, identical content)
+    // are treated as duplicates.
+    expect(h1).toBe(h2);
   });
 
   it('produces different hashes when sender_email differs', () => {
@@ -211,9 +214,19 @@ describe('emails table — deduplication', () => {
     ).rejects.toThrow(/UNIQUE constraint failed/);
   });
 
-  it('allows two emails with different gmail_ids and different hashes', async () => {
+  it('rejects a second email with the same content but different gmail_id (forwarded-copy duplicate)', async () => {
     const first  = makeEmail({ gmail_id: 'msg_001' });
-    const second = makeEmail({ gmail_id: 'msg_002' });
+    const second = makeEmail({ gmail_id: 'msg_002' }); // same content → same hash
+
+    await db.insert(emails).values(first);
+    await expect(
+      db.insert(emails).values(second)
+    ).rejects.toThrow(/UNIQUE constraint failed/);
+  });
+
+  it('allows two emails with different content and different gmail_ids', async () => {
+    const first  = makeEmail({ gmail_id: 'msg_001' });
+    const second = makeEmail({ gmail_id: 'msg_002', subject: 'Different subject' });
 
     await db.insert(emails).values(first);
     await db.insert(emails).values(second);
