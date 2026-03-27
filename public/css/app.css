@@ -79,7 +79,7 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
     background: var(--ink);
     display: flex;
     align-items: center;
-    padding: 0 24px;
+    padding: env(safe-area-inset-top) 24px 0;
     gap: 0;
     border-bottom: 2px solid var(--accent);
 }
@@ -1097,8 +1097,8 @@ button, [role="button"], .nav-item, .digest-row, .email-row, .node-row, .simple-
         height: 100vh;  /* fallback */
     }
 
-    /* Masthead: declutter */
-    .masthead { padding: 0 16px; }
+    /* Masthead: declutter, respect iOS notch/Dynamic Island */
+    .masthead { padding: env(safe-area-inset-top) 16px 0; }
     .masthead-date { display: none; }
     .masthead-user { display: none; }
     .masthead-title { margin-right: 0; }
