@@ -15,7 +15,10 @@ function since20Days() {
 
 // ── Navigation ─────────────────────────────────────────────────────────────────
 
-function switchView(name) {
+const MAIN_VIEWS = new Set(['dashboard', 'digests', 'calendar', 'settings']);
+
+// Apply DOM changes for a given view name without touching the URL.
+function applyViewDOM(name) {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelector(`.nav-item[data-view="${name}"]`)?.classList.add('active');
@@ -24,12 +27,54 @@ function switchView(name) {
     if (name === 'calendar') loadCalendar();
 }
 
+// Navigate to a named view — updates the hash so the browser records history.
+function switchView(name) {
+    location.hash = name;
+}
+
+// Navigate to an email detail — hash becomes #email/<id>.
+function navigateToEmail(email) {
+    location.hash = `email/${email.id}`;
+}
+
+// Navigate to an event detail — hash becomes #event/<id>.
+function navigateToEvent(event) {
+    location.hash = `event/${event.id}`;
+}
+
+// Read the current hash and apply the matching view/detail.
+function applyHash() {
+    const hash = location.hash.slice(1); // strip leading '#'
+
+    if (hash.startsWith('email/')) {
+        const id    = hash.slice(6);
+        const email = emailsById.get(id);
+        if (email) { renderEmailView(email); applyViewDOM('email'); return; }
+        // ID not in memory — fall through to digests
+        applyViewDOM('digests');
+        return;
+    }
+
+    if (hash.startsWith('event/')) {
+        const id    = hash.slice(6);
+        const event = eventsById.get(id);
+        if (event) { renderEventView(event); applyViewDOM('event'); return; }
+        applyViewDOM('calendar');
+        return;
+    }
+
+    const view = MAIN_VIEWS.has(hash) ? hash : 'dashboard';
+    applyViewDOM(view);
+}
+
 function initNav() {
     document.querySelectorAll('.nav-item[data-view]').forEach(item => {
         item.addEventListener('click', () => switchView(item.dataset.view));
     });
     document.getElementById('dash-cal-link')?.addEventListener('click',     () => switchView('calendar'));
     document.getElementById('dash-digests-link')?.addEventListener('click', () => switchView('digests'));
+
+    window.addEventListener('hashchange', applyHash);
 }
 
 // ── Masthead ───────────────────────────────────────────────────────────────────
@@ -477,12 +522,8 @@ function htmlToReadableNodes(html) {
     return span;
 }
 
-// Track which view we came from so Back returns to the right place.
-let emailViewReturnTo = 'digests';
-
-function openEmailView(email) {
-    if (!email) return;
-
+// Populate the email detail view DOM without changing the URL.
+function renderEmailView(email) {
     document.getElementById('email-detail-subject').textContent = email.subject || '(no subject)';
 
     const parts = [];
@@ -499,55 +540,42 @@ function openEmailView(email) {
     const raw    = email.body_raw || email.body_summary || '(no content)';
     const bodyEl = document.getElementById('email-detail-body');
     const isHtml = /<(html|body|div|p|table|span|br)\b/i.test(raw);
-
     bodyEl.innerHTML = '';
     if (isHtml) {
         bodyEl.appendChild(htmlToReadableNodes(raw));
     } else {
         bodyEl.textContent = raw;
     }
-
-    // Remember the current active view before switching
-    const active = document.querySelector('.view.active');
-    emailViewReturnTo = active?.id?.replace('view-', '') ?? 'digests';
-
-    switchView('email');
 }
 
 function initEmailView() {
-    document.getElementById('email-back-btn')?.addEventListener('click', () => {
-        switchView(emailViewReturnTo);
-    });
+    document.getElementById('email-back-btn')?.addEventListener('click', () => history.back());
 
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && document.getElementById('view-email')?.classList.contains('active')) {
-            switchView(emailViewReturnTo);
+            history.back();
         }
     });
 
     document.getElementById('dash-digests')?.addEventListener('click', e => {
         const row = e.target.closest('[data-id]');
-        if (row) openEmailView(emailsById.get(row.dataset.id));
+        if (row) navigateToEmail(emailsById.get(row.dataset.id));
     });
 
     document.getElementById('digests-list')?.addEventListener('click', e => {
         const row = e.target.closest('[data-id]');
-        if (row) openEmailView(emailsById.get(row.dataset.id));
+        if (row) navigateToEmail(emailsById.get(row.dataset.id));
     });
 }
 
 // ── Event detail view ──────────────────────────────────────────────────────────
 
-let eventViewReturnTo = 'calendar';
-
-function openEventView(event) {
-    if (!event) return;
-
+// Populate the event detail view DOM without changing the URL.
+function renderEventView(event) {
     const meta = safeJson(event.metadata);
 
     document.getElementById('event-detail-title').textContent = event.title || '(no title)';
 
-    // Time line
     const timeEl = document.getElementById('event-detail-time');
     if (meta.all_day) {
         const day = new Date(event.due_at || event.starts_at).toLocaleDateString('en-US', {
@@ -564,7 +592,6 @@ function openEventView(event) {
         timeEl.textContent = [day, start && end ? `${start} – ${end}` : start].filter(Boolean).join('  ·  ');
     }
 
-    // Detail fields
     const fieldsEl = document.getElementById('event-detail-fields');
     fieldsEl.innerHTML = '';
 
@@ -576,11 +603,7 @@ function openEventView(event) {
     };
 
     if (event.location) addField('Location', escHtml(event.location));
-
-    if (event.description) {
-        addField('Description', escHtml(event.description).replace(/\n/g, '<br>'));
-    }
-
+    if (event.description) addField('Description', escHtml(event.description).replace(/\n/g, '<br>'));
     if (meta.attendees?.length) {
         const list = meta.attendees.map(a => {
             const name = escHtml(a.name || a.email);
@@ -589,27 +612,21 @@ function openEventView(event) {
         }).join('');
         addField('Attendees', list);
     }
-
     if (meta.recurrence_rule) addField('Repeats', escHtml(meta.recurrence_rule));
-
-    eventViewReturnTo = document.querySelector('.view.active')?.id?.replace('view-', '') ?? 'calendar';
-    switchView('event');
 }
 
 function initEventView() {
-    document.getElementById('event-back-btn')?.addEventListener('click', () => {
-        switchView(eventViewReturnTo);
-    });
+    document.getElementById('event-back-btn')?.addEventListener('click', () => history.back());
 
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && document.getElementById('view-event')?.classList.contains('active')) {
-            switchView(eventViewReturnTo);
+            history.back();
         }
     });
 
     document.getElementById('calendar-list')?.addEventListener('click', e => {
         const row = e.target.closest('[data-id]');
-        if (row) openEventView(eventsById.get(row.dataset.id));
+        if (row) navigateToEvent(eventsById.get(row.dataset.id));
     });
 }
 
@@ -628,6 +645,9 @@ async function boot() {
         loadMetrics(),
         loadDashboard(),
     ]);
+
+    // Apply the initial hash (handles page refresh on a detail view or deep link).
+    applyHash();
 }
 
 document.addEventListener('DOMContentLoaded', boot);
