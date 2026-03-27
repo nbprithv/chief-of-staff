@@ -383,14 +383,13 @@ function safeJson(str) {
     try { return JSON.parse(str || '{}'); } catch { return {}; }
 }
 
-// ── Digest modal ───────────────────────────────────────────────────────────────
+// ── Email detail view ──────────────────────────────────────────────────────────
 
 // Convert HTML email to readable DOM nodes, preserving <a> hyperlinks.
 function htmlToReadableNodes(html) {
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
 
-    // Remove non-visible elements
     tmp.querySelectorAll('style, script, head, meta, link, noscript').forEach(el => el.remove());
 
     const frag = document.createDocumentFragment();
@@ -414,7 +413,7 @@ function htmlToReadableNodes(html) {
                 link.target = '_blank';
                 link.rel = 'noopener noreferrer';
                 link.textContent = label || href;
-                link.className = 'modal-link';
+                link.className = 'email-link';
                 frag.appendChild(link);
             } else {
                 frag.appendChild(document.createTextNode(label));
@@ -422,7 +421,6 @@ function htmlToReadableNodes(html) {
             return;
         }
 
-        // Block-level tags → newline before/after
         const block = ['p','div','tr','li','br','h1','h2','h3','h4','h5','h6','blockquote','hr','table','thead','tbody','section','article'].includes(tag);
         if (block && frag.lastChild?.textContent?.slice(-1) !== '\n') {
             frag.appendChild(document.createTextNode('\n'));
@@ -433,17 +431,19 @@ function htmlToReadableNodes(html) {
 
     for (const child of tmp.childNodes) walk(child);
 
-    // Collapse 3+ consecutive newlines to 2
     const span = document.createElement('span');
     span.appendChild(frag);
     span.innerHTML = span.innerHTML.replace(/\n{3,}/g, '\n\n');
     return span;
 }
 
-function openDigestModal(email) {
+// Track which view we came from so Back returns to the right place.
+let emailViewReturnTo = 'digests';
+
+function openEmailView(email) {
     if (!email) return;
 
-    document.getElementById('modal-subject').textContent = email.subject || '(no subject)';
+    document.getElementById('email-detail-subject').textContent = email.subject || '(no subject)';
 
     const parts = [];
     if (email.sender_name || email.sender_email) {
@@ -454,10 +454,10 @@ function openDigestModal(email) {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
         }));
     }
-    document.getElementById('modal-meta').textContent = parts.join('  ·  ');
+    document.getElementById('email-detail-meta').textContent = parts.join('  ·  ');
 
     const raw    = email.body_raw || email.body_summary || '(no content)';
-    const bodyEl = document.getElementById('modal-body');
+    const bodyEl = document.getElementById('email-detail-body');
     const isHtml = /<(html|body|div|p|table|span|br)\b/i.test(raw);
 
     bodyEl.innerHTML = '';
@@ -467,39 +467,32 @@ function openDigestModal(email) {
         bodyEl.textContent = raw;
     }
 
-    const modal = document.getElementById('digest-modal');
-    modal.classList.add('is-open');
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.overflow = 'hidden';
+    // Remember the current active view before switching
+    const active = document.querySelector('.view.active');
+    emailViewReturnTo = active?.id?.replace('view-', '') ?? 'digests';
+
+    switchView('email');
 }
 
-function closeDigestModal() {
-    const modal = document.getElementById('digest-modal');
-    modal.classList.remove('is-open');
-    document.getElementById('modal-body').innerHTML = '';
-    document.documentElement.style.overflow = '';
-    document.body.style.overflow = '';
-}
-
-function initDigestModal() {
-    document.getElementById('modal-close')?.addEventListener('click', closeDigestModal);
-
-    document.getElementById('digest-modal')?.addEventListener('click', e => {
-        if (e.target.id === 'digest-modal') closeDigestModal();
+function initEmailView() {
+    document.getElementById('email-back-btn')?.addEventListener('click', () => {
+        switchView(emailViewReturnTo);
     });
 
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') closeDigestModal();
+        if (e.key === 'Escape' && document.getElementById('view-email')?.classList.contains('active')) {
+            switchView(emailViewReturnTo);
+        }
     });
 
     document.getElementById('dash-digests')?.addEventListener('click', e => {
         const row = e.target.closest('[data-id]');
-        if (row) openDigestModal(emailsById.get(row.dataset.id));
+        if (row) openEmailView(emailsById.get(row.dataset.id));
     });
 
     document.getElementById('digests-list')?.addEventListener('click', e => {
         const row = e.target.closest('[data-id]');
-        if (row) openDigestModal(emailsById.get(row.dataset.id));
+        if (row) openEmailView(emailsById.get(row.dataset.id));
     });
 }
 
@@ -510,7 +503,7 @@ async function boot() {
     initNav();
     initSyncButtons();
     initSignOut();
-    initDigestModal();
+    initEmailView();
 
     await Promise.all([
         loadUser(),
