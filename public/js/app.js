@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { parseEmailCounts } from './email-parser.js';
 
 const DIGEST_QUERY = '(in:sent OR in:drafts) subject:"Galloway School Digest"';
 
@@ -399,36 +400,6 @@ function renderDigestRow(email) {
     </div>`;
 }
 
-// Date/time pattern: "Monday", "Jan 1", "January 1", "1/15", "3:00 PM", "10am" etc.
-const DATE_TIME_RE = /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b|\b\d{1,2}\/\d{1,2}\b|\b\d{1,2}:\d{2}\s*(?:am|pm)\b|\b\d{1,2}\s*(?:am|pm)\b/i;
-
-function parseEmailCounts(body) {
-    if (!body) return { actions: 0, events: 0 };
-
-    const isHtml = /<[a-z]/i.test(body);
-    let actions = 0;
-    let events  = 0;
-
-    if (isHtml) {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = body;
-        // Action items: <li> elements
-        actions = tmp.querySelectorAll('li').length;
-        // Events: any block element whose text matches a date/time pattern
-        tmp.querySelectorAll('p, div, td, h1, h2, h3, h4, li').forEach(el => {
-            if (DATE_TIME_RE.test(el.textContent)) events++;
-        });
-    } else {
-        const lines = body.split('\n');
-        lines.forEach(line => {
-            const trimmed = line.trim();
-            if (/^[-•*]\s|^\d+[.)]\s/.test(trimmed)) actions++;
-            if (DATE_TIME_RE.test(trimmed)) events++;
-        });
-    }
-
-    return { actions, events };
-}
 
 function renderEmailRow(email) {
     const date = email.received_at
