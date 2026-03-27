@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { parseEmailCounts } from './email-parser.js';
+import { stripHtml } from './email-parser.js';
 
 const DIGEST_QUERY = '(in:sent OR in:drafts) subject:"Galloway School Digest"';
 
@@ -405,19 +405,14 @@ function renderEmailRow(email) {
     const date = email.received_at
         ? new Date(email.received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
         : '';
-    const preview = email.body_raw
-        ? email.body_raw.replace(/\s+/g, ' ').trim().slice(0, 100)
-        : '';
-    const { actions, events } = parseEmailCounts(email.body_raw);
-    const pills = [
-        actions ? `<span class="digest-pill digest-pill--action">${actions} action${actions !== 1 ? 's' : ''}</span>` : '',
-        events  ? `<span class="digest-pill digest-pill--event">${events} event${events !== 1 ? 's' : ''}</span>`   : '',
-    ].join('');
+    const raw = email.body_raw || '';
+    const isHtml = /<[a-z][^>]*>/i.test(raw);
+    const text = isHtml ? stripHtml(raw) : raw;
+    const preview = text.replace(/\s+/g, ' ').trim().slice(0, 120);
     return `<div class="email-row" data-id="${escHtml(email.id)}">
         <div class="email-row-main">
             <div class="email-subject">${escHtml(email.subject || '(no subject)')}</div>
             ${preview ? `<div class="email-preview">${escHtml(preview)}</div>` : ''}
-            ${pills   ? `<div class="digest-pills">${pills}</div>` : ''}
         </div>
         <div class="email-meta">${date}</div>
     </div>`;
