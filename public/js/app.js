@@ -354,6 +354,37 @@ function renderDigestRow(email) {
     </div>`;
 }
 
+// Date/time pattern: "Monday", "Jan 1", "January 1", "1/15", "3:00 PM", "10am" etc.
+const DATE_TIME_RE = /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b|\b\d{1,2}\/\d{1,2}\b|\b\d{1,2}:\d{2}\s*(?:am|pm)\b|\b\d{1,2}\s*(?:am|pm)\b/i;
+
+function parseEmailCounts(body) {
+    if (!body) return { actions: 0, events: 0 };
+
+    const isHtml = /<[a-z]/i.test(body);
+    let actions = 0;
+    let events  = 0;
+
+    if (isHtml) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = body;
+        // Action items: <li> elements
+        actions = tmp.querySelectorAll('li').length;
+        // Events: any block element whose text matches a date/time pattern
+        tmp.querySelectorAll('p, div, td, h1, h2, h3, h4, li').forEach(el => {
+            if (DATE_TIME_RE.test(el.textContent)) events++;
+        });
+    } else {
+        const lines = body.split('\n');
+        lines.forEach(line => {
+            const trimmed = line.trim();
+            if (/^[-•*]\s|^\d+[.)]\s/.test(trimmed)) actions++;
+            if (DATE_TIME_RE.test(trimmed)) events++;
+        });
+    }
+
+    return { actions, events };
+}
+
 function renderEmailRow(email) {
     const date = email.received_at
         ? new Date(email.received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -361,10 +392,16 @@ function renderEmailRow(email) {
     const preview = email.body_raw
         ? email.body_raw.replace(/\s+/g, ' ').trim().slice(0, 100)
         : '';
+    const { actions, events } = parseEmailCounts(email.body_raw);
+    const pills = [
+        actions ? `<span class="digest-pill digest-pill--action">${actions} action${actions !== 1 ? 's' : ''}</span>` : '',
+        events  ? `<span class="digest-pill digest-pill--event">${events} event${events !== 1 ? 's' : ''}</span>`   : '',
+    ].join('');
     return `<div class="email-row" data-id="${escHtml(email.id)}">
-        <div>
+        <div class="email-row-main">
             <div class="email-subject">${escHtml(email.subject || '(no subject)')}</div>
             ${preview ? `<div class="email-preview">${escHtml(preview)}</div>` : ''}
+            ${pills   ? `<div class="digest-pills">${pills}</div>` : ''}
         </div>
         <div class="email-meta">${date}</div>
     </div>`;
