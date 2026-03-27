@@ -88,7 +88,7 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
     font-family: var(--serif);
     font-size: 17px;
     font-weight: 600;
-    color: #f0ece4;
+    color: var(--paper);
     letter-spacing: -0.2px;
     margin-right: 24px;
 }
@@ -96,10 +96,10 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
 .masthead-date {
     font-family: var(--mono);
     font-size: 11px;
-    color: #666;
+    color: var(--ink3);
     letter-spacing: 0.04em;
     padding-left: 24px;
-    border-left: 1px solid #333;
+    border-left: 1px solid var(--ink4);
 }
 
 .masthead-right {
@@ -607,7 +607,7 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
 .masthead-user {
     font-family: var(--mono);
     font-size: 11px;
-    color: #555;
+    color: var(--ink3);
     letter-spacing: 0.02em;
 }
 
@@ -617,8 +617,8 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
     font-weight: 500;
     padding: 5px 14px;
     background: transparent;
-    color: #888;
-    border: 1px solid #333;
+    color: var(--ink3);
+    border: 1px solid var(--ink4);
     border-radius: 2px;
     cursor: pointer;
     letter-spacing: 0.04em;
@@ -854,13 +854,11 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
     font-size: 14px;
     background: transparent;
     border: none;
-    color: var(--ink3);
+    color: var(--paper2);
     cursor: pointer;
     padding: 4px 6px;
     line-height: 1;
     transition: color 0.15s;
-    /* override masthead dark bg so ink3 shows */
-    color: #666;
 }
 .masthead-theme-btn:hover { color: var(--accent2); }
 
