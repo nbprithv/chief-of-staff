@@ -449,7 +449,10 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
     border-left: 3px solid var(--blue);
     border-radius: 0 2px 2px 0;
     margin-bottom: 5px;
+    cursor: pointer;
+    transition: border-color 0.12s;
 }
+.event-item:hover { border-left-color: var(--accent); }
 
 .event-time { font-family: var(--mono); font-size: 10px; color: var(--ink3); white-space: nowrap; padding-top: 1px; }
 .event-name { font-size: 12px; font-weight: 500; color: var(--ink); }
@@ -742,6 +745,69 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
     word-break: break-word;
 }
 .email-link:hover { opacity: 0.8; }
+
+/* ── Event detail view ───────────────────────────────────────────────────────── */
+
+.event-detail-time {
+    padding: 10px 0;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink3);
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--rule);
+}
+
+.event-detail-fields {
+    padding: 20px 0 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.event-detail-field {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 8px;
+    align-items: start;
+}
+
+.event-detail-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink4);
+    padding-top: 2px;
+}
+
+.event-detail-value {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink2);
+}
+
+.attendee-row {
+    padding: 3px 0;
+    font-size: 13px;
+    color: var(--ink2);
+}
+
+.attendee-resp {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 1px 5px;
+    border-radius: 2px;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+.attendee-resp--accepted  { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); }
+.attendee-resp--declined  { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+.attendee-resp--tentative { background: color-mix(in srgb, var(--ink3) 15%, transparent); color: var(--ink3); }
 
 /* ── Global touch / tap improvements ────────────────────────────────────────── */
 

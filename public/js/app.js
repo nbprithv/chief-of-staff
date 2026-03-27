@@ -2,7 +2,8 @@ import { api } from './api.js';
 
 const DIGEST_QUERY = '(in:sent OR in:drafts) subject:"Galloway School Digest"';
 
-const emailsById = new Map();
+const emailsById  = new Map();
+const eventsById  = new Map();
 
 /** ISO datetime string for 20 days ago — used to filter email fetches. */
 function since20Days() {
@@ -252,6 +253,8 @@ async function loadCalendar() {
             grouped.get(key).push(n);
         }
 
+        upcoming.forEach(n => eventsById.set(n.id, n));
+
         let html = '';
         for (const [date, events] of grouped) {
             html += `<div class="date-group-label">${date}</div>`;
@@ -260,7 +263,7 @@ async function loadCalendar() {
                 const timeStr = meta.all_day
                     ? 'all day'
                     : new Date(n.due_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                return `<div class="event-item">
+                return `<div class="event-item" data-id="${escHtml(n.id)}">
                     <div class="event-time">${timeStr}</div>
                     <div>
                         <div class="event-name">${escHtml(n.title)}</div>
@@ -496,6 +499,83 @@ function initEmailView() {
     });
 }
 
+// ── Event detail view ──────────────────────────────────────────────────────────
+
+let eventViewReturnTo = 'calendar';
+
+function openEventView(event) {
+    if (!event) return;
+
+    const meta = safeJson(event.metadata);
+
+    document.getElementById('event-detail-title').textContent = event.title || '(no title)';
+
+    // Time line
+    const timeEl = document.getElementById('event-detail-time');
+    if (meta.all_day) {
+        const day = new Date(event.due_at || event.starts_at).toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        });
+        timeEl.textContent = `${day}  ·  All day`;
+    } else {
+        const fmt = dt => new Date(dt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        const day = new Date(event.starts_at || event.due_at).toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        });
+        const start = event.starts_at ? fmt(event.starts_at) : '';
+        const end   = event.ends_at   ? fmt(event.ends_at)   : '';
+        timeEl.textContent = [day, start && end ? `${start} – ${end}` : start].filter(Boolean).join('  ·  ');
+    }
+
+    // Detail fields
+    const fieldsEl = document.getElementById('event-detail-fields');
+    fieldsEl.innerHTML = '';
+
+    const addField = (label, value) => {
+        const row = document.createElement('div');
+        row.className = 'event-detail-field';
+        row.innerHTML = `<div class="event-detail-label">${label}</div><div class="event-detail-value">${value}</div>`;
+        fieldsEl.appendChild(row);
+    };
+
+    if (event.location) addField('Location', escHtml(event.location));
+
+    if (event.description) {
+        addField('Description', escHtml(event.description).replace(/\n/g, '<br>'));
+    }
+
+    if (meta.attendees?.length) {
+        const list = meta.attendees.map(a => {
+            const name = escHtml(a.name || a.email);
+            const resp = a.response ? ` <span class="attendee-resp attendee-resp--${a.response}">${a.response}</span>` : '';
+            return `<div class="attendee-row">${name}${resp}</div>`;
+        }).join('');
+        addField('Attendees', list);
+    }
+
+    if (meta.recurrence_rule) addField('Repeats', escHtml(meta.recurrence_rule));
+
+    eventViewReturnTo = document.querySelector('.view.active')?.id?.replace('view-', '') ?? 'calendar';
+    switchView('event');
+}
+
+function initEventView() {
+    document.getElementById('event-back-btn')?.addEventListener('click', () => {
+        switchView(eventViewReturnTo);
+    });
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && document.getElementById('view-event')?.classList.contains('active')) {
+            switchView(eventViewReturnTo);
+        }
+    });
+
+    document.getElementById('calendar-list')?.addEventListener('click', e => {
+        const row = e.target.closest('[data-id]');
+        if (row) openEventView(eventsById.get(row.dataset.id));
+    });
+}
+
 // ── Boot ───────────────────────────────────────────────────────────────────────
 
 async function boot() {
@@ -504,6 +584,7 @@ async function boot() {
     initSyncButtons();
     initSignOut();
     initEmailView();
+    initEventView();
 
     await Promise.all([
         loadUser(),
