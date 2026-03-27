@@ -2,9 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     parseEmailCounts,
     stripHtml,
-    countHtmlListItems,
-    countPlainListItems,
-    countDateLines,
+    countSectionItems,
 } from '../email-parser.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13,7 +11,6 @@ import {
 
 describe('stripHtml()', () => {
     it('removes basic tags, trailing newline from closing block tag', () => {
-        // <p> open tag → nothing; </p> close tag → newline; <b> inline → nothing
         expect(stripHtml('<p>Hello <b>world</b></p>')).toBe('Hello world\n');
     });
 
@@ -21,7 +18,6 @@ describe('stripHtml()', () => {
         const out = stripHtml('<p>Line one</p><p>Line two</p>');
         expect(out).toContain('Line one');
         expect(out).toContain('Line two');
-        // The two lines should be separated by newlines, not run together
         expect(out).not.toBe('Line oneLine two');
     });
 
@@ -30,8 +26,7 @@ describe('stripHtml()', () => {
     });
 
     it('handles self-closing <br>', () => {
-        const out = stripHtml('line1<br>line2<br/>line3');
-        expect(out).toBe('line1\nline2\nline3');
+        expect(stripHtml('line1<br>line2<br/>line3')).toBe('line1\nline2\nline3');
     });
 
     it('returns empty string for empty input', () => {
@@ -40,182 +35,199 @@ describe('stripHtml()', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// countHtmlListItems
+// countSectionItems — plain text
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('countHtmlListItems()', () => {
-    it('counts <li> elements', () => {
-        const html = '<ul><li>Item 1</li><li>Item 2</li><li>Item 3</li></ul>';
-        expect(countHtmlListItems(html)).toBe(3);
+describe('countSectionItems() — plain text', () => {
+    it('counts items under ACTION REQUIRED heading', () => {
+        const text = [
+            'ACTION REQUIRED',
+            'Sign the permission slip',
+            'Return the library book',
+            '',
+            'CALENDAR EVENTS ADDED',
+            'Monday assembly',
+        ].join('\n');
+        expect(countSectionItems(text).actions).toBe(2);
     });
 
-    it('counts <li> with attributes', () => {
-        const html = '<li class="foo">Item</li>';
-        expect(countHtmlListItems(html)).toBe(1);
+    it('counts items under CALENDAR EVENTS ADDED heading', () => {
+        const text = [
+            'CALENDAR EVENTS ADDED',
+            'Monday - School Assembly, 9am',
+            'Wednesday - Field Trip',
+            'Friday - Early Dismissal at 1pm',
+        ].join('\n');
+        expect(countSectionItems(text).events).toBe(3);
     });
 
-    it('returns 0 when no list items', () => {
-        expect(countHtmlListItems('<p>No list here</p>')).toBe(0);
-    });
-
-    it('counts nested list items', () => {
-        const html = '<ul><li>Parent<ul><li>Child</li></ul></li></ul>';
-        expect(countHtmlListItems(html)).toBe(2);
-    });
-
-    it('returns 0 for empty string', () => {
-        expect(countHtmlListItems('')).toBe(0);
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// countPlainListItems
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('countPlainListItems()', () => {
-    it('counts dash bullet lines', () => {
-        const text = '- Item one\n- Item two\n- Item three';
-        expect(countPlainListItems(text)).toBe(3);
-    });
-
-    it('counts bullet • lines', () => {
-        const text = '• First\n• Second';
-        expect(countPlainListItems(text)).toBe(2);
-    });
-
-    it('counts asterisk bullet lines', () => {
-        const text = '* A\n* B';
-        expect(countPlainListItems(text)).toBe(2);
-    });
-
-    it('counts numbered list lines with period', () => {
-        const text = '1. One\n2. Two\n3. Three';
-        expect(countPlainListItems(text)).toBe(3);
-    });
-
-    it('counts numbered list lines with parenthesis', () => {
-        const text = '1) One\n2) Two';
-        expect(countPlainListItems(text)).toBe(2);
-    });
-
-    it('does not count plain prose lines as list items', () => {
-        const text = 'Hello world\nThis is a sentence\nNo bullets here';
-        expect(countPlainListItems(text)).toBe(0);
-    });
-
-    it('returns 0 for empty string', () => {
-        expect(countPlainListItems('')).toBe(0);
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// countDateLines
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('countDateLines()', () => {
-    it('matches a day name', () => {
-        expect(countDateLines('Join us on Monday for the meeting')).toBe(1);
-    });
-
-    it('matches a month + day', () => {
-        expect(countDateLines('Event on March 15')).toBe(1);
-    });
-
-    it('matches a time like 3:00 PM', () => {
-        expect(countDateLines('Starts at 3:00 PM')).toBe(1);
-    });
-
-    it('matches a time like 10am', () => {
-        expect(countDateLines('Drop-off at 10am')).toBe(1);
-    });
-
-    it('matches a date like 1/15', () => {
-        expect(countDateLines('Due 1/15')).toBe(1);
-    });
-
-    it('counts each matching line once, even with multiple patterns', () => {
-        // "Monday, March 15 at 3:00 PM" has 3 patterns but is ONE line
-        expect(countDateLines('Monday, March 15 at 3:00 PM')).toBe(1);
-    });
-
-    it('counts multiple lines that each have a date reference', () => {
-        const text = 'Monday assembly at 8am\nTuesday field trip\nNo date here';
-        expect(countDateLines(text)).toBe(2);
-    });
-
-    it('does not count plain prose with no dates', () => {
-        expect(countDateLines('This email has no scheduling information.')).toBe(0);
-    });
-
-    it('returns 0 for empty string', () => {
-        expect(countDateLines('')).toBe(0);
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// parseEmailCounts — HTML bodies
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('parseEmailCounts() — HTML', () => {
-    it('counts list items as actions and date lines as events', () => {
-        const html = `
-            <ul>
-                <li>Return the permission slip</li>
-                <li>Bring a water bottle</li>
-            </ul>
-            <p>Field trip on Friday, May 3</p>
-            <p>Pick-up at 2:30 PM</p>
-        `;
-        const { actions, events } = parseEmailCounts(html);
+    it('handles both sections in one email', () => {
+        const text = [
+            'Weekly Digest',
+            '',
+            'ACTION REQUIRED',
+            'Return permission slip by Friday',
+            'Pay lunch balance',
+            '',
+            'CALENDAR EVENTS ADDED',
+            'Tuesday - Picture Day',
+            'Thursday - Book Fair',
+        ].join('\n');
+        const { actions, events } = countSectionItems(text);
         expect(actions).toBe(2);
-        expect(events).toBeGreaterThanOrEqual(2); // Friday + May 3 on one line, 2:30 PM on another
+        expect(events).toBe(2);
     });
 
-    it('returns 0 actions when no list items', () => {
-        const html = '<p>No list items here, just prose.</p>';
-        expect(parseEmailCounts(html).actions).toBe(0);
+    it('stops counting action items when the next section heading is reached', () => {
+        const text = [
+            'ACTION REQUIRED',
+            'Item A',
+            'Item B',
+            'CALENDAR EVENTS ADDED',  // ← section boundary
+            'Event X',
+        ].join('\n');
+        expect(countSectionItems(text).actions).toBe(2);
     });
 
-    it('returns 0 events when no date patterns', () => {
-        const html = '<ul><li>Pack your lunch</li><li>Wear comfortable shoes</li></ul>';
-        expect(parseEmailCounts(html).events).toBe(0);
+    it('stops counting events when the next section heading is reached', () => {
+        const text = [
+            'CALENDAR EVENTS ADDED',
+            'Event X',
+            'Event Y',
+            'ACTION REQUIRED',  // ← section boundary
+            'Item A',
+        ].join('\n');
+        expect(countSectionItems(text).events).toBe(2);
     });
 
-    it('handles empty body', () => {
+    it('returns zeros when neither heading is present', () => {
+        const text = 'Hello families,\n\nHave a great week!\n';
+        expect(countSectionItems(text)).toEqual({ actions: 0, events: 0 });
+    });
+
+    it('ignores blank lines within a section', () => {
+        const text = [
+            'ACTION REQUIRED',
+            '',
+            'Return form',
+            '',
+            'Bring supplies',
+            '',
+        ].join('\n');
+        expect(countSectionItems(text).actions).toBe(2);
+    });
+
+    it('is case-insensitive on heading names', () => {
+        const text = [
+            'Action Required',
+            'Do the thing',
+            'Calendar Events Added',
+            'Go to the thing',
+        ].join('\n');
+        const { actions, events } = countSectionItems(text);
+        expect(actions).toBe(1);
+        expect(events).toBe(1);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// countSectionItems — HTML bodies
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('countSectionItems() — HTML', () => {
+    it('counts items in ACTION REQUIRED section of an HTML email', () => {
+        const html = `
+            <h2>ACTION REQUIRED</h2>
+            <ul>
+                <li>Sign the permission slip</li>
+                <li>Pay the lunch balance</li>
+                <li>Update emergency contacts</li>
+            </ul>
+            <h2>CALENDAR EVENTS ADDED</h2>
+            <ul>
+                <li>Monday - Assembly</li>
+            </ul>
+        `;
+        expect(countSectionItems(html).actions).toBe(3);
+    });
+
+    it('counts items in CALENDAR EVENTS ADDED section of an HTML email', () => {
+        const html = `
+            <h2>ACTION REQUIRED</h2>
+            <ul><li>Return form</li></ul>
+            <h2>CALENDAR EVENTS ADDED</h2>
+            <ul>
+                <li>Tuesday - Field Trip</li>
+                <li>Friday - Early Dismissal</li>
+            </ul>
+        `;
+        expect(countSectionItems(html).events).toBe(2);
+    });
+
+    it('handles paragraph-based items (not only <li>)', () => {
+        const html = `
+            <h2>CALENDAR EVENTS ADDED</h2>
+            <p>Monday - Assembly at 9am</p>
+            <p>Thursday - Book Fair</p>
+        `;
+        expect(countSectionItems(html).events).toBe(2);
+    });
+
+    it('returns zeros when headings are absent from HTML', () => {
+        const html = '<p>Thanks for a great week! See you Monday.</p>';
+        expect(countSectionItems(html)).toEqual({ actions: 0, events: 0 });
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// parseEmailCounts — integration
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('parseEmailCounts()', () => {
+    it('returns zeros for empty/null body', () => {
         expect(parseEmailCounts('')).toEqual({ actions: 0, events: 0 });
-    });
-
-    it('handles null/undefined body', () => {
         expect(parseEmailCounts(null)).toEqual({ actions: 0, events: 0 });
         expect(parseEmailCounts(undefined)).toEqual({ actions: 0, events: 0 });
     });
-});
 
-// ─────────────────────────────────────────────────────────────────────────────
-// parseEmailCounts — plain text bodies
-// ─────────────────────────────────────────────────────────────────────────────
+    it('parses a realistic plain-text digest correctly', () => {
+        const body = [
+            'Galloway School Weekly Digest',
+            '',
+            'ACTION REQUIRED',
+            'Return the signed permission slip by Friday',
+            'Update your emergency contact information in the portal',
+            '',
+            'CALENDAR EVENTS ADDED',
+            'Monday, April 7 - Morning Assembly (8:30am)',
+            'Wednesday, April 9 - Field Trip to Science Museum',
+            'Friday, April 11 - Early Dismissal at 1:00pm',
+        ].join('\n');
 
-describe('parseEmailCounts() — plain text', () => {
-    it('counts dash-bullet lines as actions', () => {
-        const text = '- Sign the form\n- Return by Friday\nSee you then.';
-        expect(parseEmailCounts(text).actions).toBe(2);
-    });
-
-    it('counts lines with date/time as events', () => {
-        const text = 'Book Fair: Monday, April 8\nPicture Day: Wednesday\nRegular school day.';
-        expect(parseEmailCounts(text).events).toBe(2);
-    });
-
-    it('does not double-count a line that is both a bullet and has a date', () => {
-        // A line like "- Assembly on Monday" counts as 1 action AND 1 event
-        const text = '- Assembly on Monday\n- Return permission slip';
-        const { actions, events } = parseEmailCounts(text);
+        const { actions, events } = parseEmailCounts(body);
         expect(actions).toBe(2);
-        expect(events).toBe(1); // only the first bullet has a date
+        expect(events).toBe(3);
     });
 
-    it('handles plain body with no bullets and no dates', () => {
-        const text = 'Thanks for a great week!\nHave a wonderful weekend.';
-        expect(parseEmailCounts(text)).toEqual({ actions: 0, events: 0 });
+    it('parses a realistic HTML digest correctly', () => {
+        const html = `
+            <html><body>
+            <h1>Galloway School Weekly Digest</h1>
+            <h2>ACTION REQUIRED</h2>
+            <ul>
+                <li>Return the signed permission slip by Friday</li>
+                <li>Update emergency contact information</li>
+            </ul>
+            <h2>CALENDAR EVENTS ADDED</h2>
+            <ul>
+                <li>Monday - Morning Assembly</li>
+                <li>Wednesday - Field Trip</li>
+                <li>Friday - Early Dismissal</li>
+            </ul>
+            </body></html>
+        `;
+        const { actions, events } = parseEmailCounts(html);
+        expect(actions).toBe(2);
+        expect(events).toBe(3);
     });
 });

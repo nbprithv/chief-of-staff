@@ -3,12 +3,17 @@
  * Safe to import in both browser and Node.js (Vitest).
  */
 
-// Matches day names, month names, date formats, and time formats.
-export const DATE_TIME_RE = /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{1,2}\b|\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|\b\d{1,2}:\d{2}\s*(?:am|pm)\b|\b\d{1,2}\s*(?:am|pm)\b/gi;
+const HEADING_ACTION = /action\s+required/i;
+const HEADING_EVENT  = /calendar\s+events?\s*(added)?/i;
+
+// Any known section heading — used to detect when a section ends.
+function isSectionHeading(line) {
+    return HEADING_ACTION.test(line) || HEADING_EVENT.test(line);
+}
 
 /**
- * Strip all HTML tags from a string, collapsing whitespace.
- * Block-level close tags are replaced with a newline so text stays line-separated.
+ * Strip all HTML tags from a string.
+ * Block-level close tags become newlines so content stays line-separated.
  */
 export function stripHtml(html) {
     return html
@@ -22,48 +27,41 @@ export function stripHtml(html) {
 }
 
 /**
- * Count <li> occurrences in raw HTML — each one is treated as an action item.
+ * Scan plain text for "ACTION REQUIRED" and "CALENDAR EVENTS ADDED" sections
+ * and count the non-blank lines within each one.
+ * Works on both plain text and HTML (HTML is stripped first).
  */
-export function countHtmlListItems(html) {
-    return (html.match(/<li[\s>]/gi) ?? []).length;
-}
-
-/**
- * Count lines in plain text that look like bullet/numbered list items.
- */
-export function countPlainListItems(text) {
-    return text.split('\n').filter(line => /^[\s]*[-•*]\s|^[\s]*\d+[.)]\s/.test(line)).length;
-}
-
-/**
- * Count lines that contain at least one date or time reference.
- * Each line is counted at most once regardless of how many matches it has.
- */
-export function countDateLines(text) {
-    return text.split('\n').filter(line => {
-        DATE_TIME_RE.lastIndex = 0;
-        return DATE_TIME_RE.test(line);
-    }).length;
-}
-
-/**
- * Given a raw email body (HTML or plain text), return:
- *   actions — number of action items (list items)
- *   events  — number of lines that look like scheduled items
- */
-export function parseEmailCounts(body) {
+export function countSectionItems(body) {
     if (!body) return { actions: 0, events: 0 };
 
     const isHtml = /<[a-z][^>]*>/i.test(body);
+    const text   = isHtml ? stripHtml(body) : body;
 
-    if (isHtml) {
-        const actions = countHtmlListItems(body);
-        const text    = stripHtml(body);
-        const events  = countDateLines(text);
-        return { actions, events };
+    const lines = text.split('\n').map(l => l.trim());
+
+    let section = null;
+    let actions = 0;
+    let events  = 0;
+
+    for (const line of lines) {
+        if (HEADING_ACTION.test(line)) { section = 'actions'; continue; }
+        if (HEADING_EVENT.test(line))  { section = 'events';  continue; }
+
+        if (!line) continue; // skip blank lines
+
+        // A line matching a known heading pattern resets the section (handled above).
+        // Count non-blank content lines within the current section.
+        if (section === 'actions') actions++;
+        else if (section === 'events') events++;
     }
 
-    const actions = countPlainListItems(body);
-    const events  = countDateLines(body);
     return { actions, events };
+}
+
+/**
+ * Given a raw email body (HTML or plain text), return pill counts.
+ */
+export function parseEmailCounts(body) {
+    if (!body) return { actions: 0, events: 0 };
+    return countSectionItems(body);
 }
