@@ -265,64 +265,198 @@ async function loadDigests() {
 
 // ── Calendar view ──────────────────────────────────────────────────────────────
 
-let calendarLoaded = false;
+const calState = {
+    loaded:       false,
+    year:         new Date().getFullYear(),
+    month:        new Date().getMonth(),
+    selectedDate: null,
+    dateMap:      null,   // Map<'YYYY-MM-DD', node[]>
+};
+
+function dateKey(dt) {
+    // Returns 'YYYY-MM-DD' in local time
+    const d = new Date(dt);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function buildEventsDateMap(nodes) {
+    const map = new Map();
+    for (const n of nodes) {
+        const key = dateKey(n.starts_at || n.due_at);
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(n);
+    }
+    return map;
+}
+
+function renderCalendarMonth() {
+    const { year, month, dateMap, selectedDate } = calState;
+    const today      = dateKey(new Date());
+    const firstDow   = new Date(year, month, 1).getDay();  // 0=Sun
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    const monthLabel = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const el = document.getElementById('cal-month-label');
+    if (el) el.textContent = monthLabel;
+
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const headerEl = document.getElementById('cal-grid-header');
+    if (headerEl) {
+        headerEl.innerHTML = dayNames.map(d =>
+            `<div class="cal-grid-header-cell">${d}</div>`
+        ).join('');
+    }
+
+    let cells = '';
+    for (let i = 0; i < firstDow; i++) {
+        cells += `<div class="cal-grid-day cal-grid-day--empty"></div>`;
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+        const key      = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const events   = dateMap?.get(key) ?? [];
+        const dow      = (firstDow + d - 1) % 7;
+        const isWeekend = dow === 0 || dow === 6;
+        const classes  = [
+            'cal-grid-day',
+            key === today         ? 'cal-grid-day--today'    : '',
+            key === selectedDate  ? 'cal-grid-day--selected' : '',
+            isWeekend             ? 'cal-grid-day--weekend'  : '',
+        ].filter(Boolean).join(' ');
+        cells += `<button class="${classes}" data-date="${key}">
+            <span class="cal-day-num">${d}</span>
+            ${events.length ? `<span class="cal-event-badge">${events.length}</span>` : ''}
+        </button>`;
+    }
+
+    const gridEl = document.getElementById('cal-grid');
+    if (gridEl) gridEl.innerHTML = cells;
+}
+
+function renderDayEvents(key) {
+    calState.selectedDate = key;
+    const panel = document.getElementById('cal-day-panel');
+    if (!panel) return;
+
+    const events = (calState.dateMap?.get(key) ?? [])
+        .slice()
+        .sort((a, b) => (a.starts_at || a.due_at || '').localeCompare(b.starts_at || b.due_at || ''));
+
+    const label = new Date(key + 'T12:00:00').toLocaleDateString('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+    });
+
+    if (events.length === 0) {
+        panel.innerHTML = `<div class="cal-day-panel-label">${label}</div>
+            <div class="cal-no-events">No events</div>`;
+        return;
+    }
+
+    const rows = events.map(n => {
+        const meta = safeJson(n.metadata);
+        let timeHtml;
+        if (meta.all_day) {
+            timeHtml = `<div class="cal-ev-allday">All day</div>`;
+        } else {
+            const dt   = new Date(n.starts_at || n.due_at);
+            const hour = dt.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true }).replace(/\s?(AM|PM)/i, '');
+            const ampm = dt.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true }).match(/AM|PM/i)?.[0] ?? '';
+            const mins = dt.getMinutes() ? `:${String(dt.getMinutes()).padStart(2, '0')}` : '';
+            timeHtml = `<div class="cal-ev-time">${hour}${mins}<span class="cal-ev-time-ampm">${ampm}</span></div>`;
+        }
+        return `<div class="cal-ev-item" data-id="${escHtml(n.id)}">
+            <div>${timeHtml}</div>
+            <div>
+                <div class="cal-ev-name">${escHtml(n.title)}</div>
+                ${n.location ? `<div class="cal-ev-loc">${escHtml(n.location)}</div>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+
+    panel.innerHTML = `<div class="cal-day-panel-label">${label}</div>${rows}`;
+}
 
 async function loadCalendar() {
-    if (calendarLoaded) return;
-    calendarLoaded = true;
+    if (calState.loaded) return;
+    calState.loaded = true;
 
-    const container = document.getElementById('calendar-list');
-    const countEl   = document.getElementById('calendar-count');
-    if (!container) return;
+    const countEl = document.getElementById('calendar-count');
+    const panel   = document.getElementById('cal-day-panel');
 
     try {
         const { nodes = [] } = await api.nodes({ type: 'event', limit: 500 });
+        nodes.forEach(n => eventsById.set(n.id, n));
 
-        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-        const upcoming = nodes
-            .filter(n => n.due_at && new Date(n.due_at) >= todayStart)
-            .sort((a, b) => new Date(a.due_at) - new Date(b.due_at));
+        calState.dateMap = buildEventsDateMap(nodes);
 
-        if (countEl) countEl.textContent = `${upcoming.length} upcoming`;
+        if (countEl) countEl.textContent = `${nodes.length} event${nodes.length !== 1 ? 's' : ''}`;
 
-        if (upcoming.length === 0) {
-            container.innerHTML = emptyState('No events — click Sync to fetch');
-            return;
+        renderCalendarMonth();
+
+        // Auto-select today if it has events, otherwise show placeholder
+        const today = dateKey(new Date());
+        if (calState.dateMap.has(today)) {
+            renderDayEvents(today);
+            renderCalendarMonth(); // refresh selection highlight
+        } else if (panel) {
+            panel.innerHTML = `<div class="cal-no-events">Select a date to see events</div>`;
         }
-
-        const grouped = new Map();
-        for (const n of upcoming) {
-            const key = new Date(n.due_at).toLocaleDateString('en-US', {
-                weekday: 'long', month: 'long', day: 'numeric',
-            });
-            if (!grouped.has(key)) grouped.set(key, []);
-            grouped.get(key).push(n);
-        }
-
-        upcoming.forEach(n => eventsById.set(n.id, n));
-
-        let html = '';
-        for (const [date, events] of grouped) {
-            html += `<div class="date-group-label">${date}</div>`;
-            html += events.map(n => {
-                const meta    = safeJson(n.metadata);
-                const timeStr = meta.all_day
-                    ? 'all day'
-                    : new Date(n.due_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                return `<div class="event-item" data-id="${escHtml(n.id)}">
-                    <div class="event-time">${timeStr}</div>
-                    <div>
-                        <div class="event-name">${escHtml(n.title)}</div>
-                        ${n.location    ? `<div class="event-loc">${escHtml(n.location)}</div>` : ''}
-                        ${n.description ? `<div class="event-loc">${escHtml(n.description.slice(0, 80))}</div>` : ''}
-                    </div>
-                </div>`;
-            }).join('');
-        }
-        container.innerHTML = html;
     } catch {
-        container.innerHTML = emptyState('Could not load events');
+        if (panel) panel.innerHTML = emptyState('Could not load events');
     }
+}
+
+function initCalendarNav() {
+    document.getElementById('cal-prev-btn')?.addEventListener('click', () => {
+        calState.month--;
+        if (calState.month < 0) { calState.month = 11; calState.year--; }
+        renderCalendarMonth();
+    });
+
+    document.getElementById('cal-next-btn')?.addEventListener('click', () => {
+        calState.month++;
+        if (calState.month > 11) { calState.month = 0; calState.year++; }
+        renderCalendarMonth();
+    });
+
+    document.getElementById('cal-grid')?.addEventListener('click', e => {
+        const cell = e.target.closest('[data-date]');
+        if (!cell) return;
+        renderDayEvents(cell.dataset.date);
+        renderCalendarMonth();
+    });
+
+    document.getElementById('cal-day-panel')?.addEventListener('click', e => {
+        const row = e.target.closest('[data-id]');
+        if (row) navigateToEvent(eventsById.get(row.dataset.id));
+    });
+}
+
+function initThemeToggle() {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'dark' || saved === 'light') {
+        document.documentElement.setAttribute('data-theme', saved);
+    }
+    updateThemeIcon();
+
+    document.getElementById('theme-toggle-btn')?.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme');
+        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const isDark = current === 'dark' || (!current && systemDark);
+        const next = isDark ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+        updateThemeIcon();
+    });
+}
+
+function updateThemeIcon() {
+    const btn = document.getElementById('theme-toggle-btn');
+    if (!btn) return;
+    const current   = document.documentElement.getAttribute('data-theme');
+    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const isDark    = current === 'dark' || (!current && systemDark);
+    btn.textContent = isDark ? '☀' : '☾';
+    btn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
 }
 
 // ── Sync ───────────────────────────────────────────────────────────────────────
@@ -347,7 +481,7 @@ function initSyncButtons() {
         if (btn) { btn.textContent = '↻ Syncing…'; btn.disabled = true; }
         try {
             await api.calendarSync({});
-            calendarLoaded = false;
+            calState.loaded = false; calState.dateMap = null;
             await Promise.all([loadCalendar(), loadMetrics()]);
         } finally {
             if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
@@ -367,7 +501,7 @@ async function syncAll() {
         localStorage.setItem('lastSync', new Date().toISOString());
 
         digestsLoaded  = false;
-        calendarLoaded = false;
+        calState.loaded = false; calState.dateMap = null;
         await Promise.all([loadMetrics(), loadDashboard()]);
     } finally {
         if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
@@ -590,10 +724,6 @@ function initEventView() {
         }
     });
 
-    document.getElementById('calendar-list')?.addEventListener('click', e => {
-        const row = e.target.closest('[data-id]');
-        if (row) navigateToEvent(eventsById.get(row.dataset.id));
-    });
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
@@ -605,6 +735,8 @@ async function boot() {
     initSignOut();
     initEmailView();
     initEventView();
+    initCalendarNav();
+    initThemeToggle();
 
     await Promise.all([
         loadUser(),

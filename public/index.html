@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -19,6 +19,7 @@
         <div class="masthead-date" id="masthead-date"></div>
         <div class="masthead-right">
             <span class="masthead-user" id="masthead-user"></span>
+            <button class="masthead-theme-btn" id="theme-toggle-btn" aria-label="Toggle theme">☾</button>
             <button class="masthead-sync-btn" id="sync-btn">↻ Sync</button>
         </div>
     </header>
@@ -101,12 +102,22 @@
 
         <!-- Calendar view -->
         <div class="view" id="view-calendar">
-            <div class="section-head">
-                <div class="section-title">Calendar</div>
-                <div class="section-count" id="calendar-count"></div>
-                <button class="section-action" id="sync-calendar-btn">↻ Sync</button>
+            <div class="cal-toolbar">
+                <div class="cal-nav-group">
+                    <button class="cal-nav-btn" id="cal-prev-btn">‹</button>
+                    <span class="cal-month-label" id="cal-month-label"></span>
+                    <button class="cal-nav-btn" id="cal-next-btn">›</button>
+                </div>
+                <div class="cal-toolbar-right">
+                    <span class="section-count" id="calendar-count"></span>
+                    <button class="section-action" id="sync-calendar-btn">↻ Sync</button>
+                </div>
             </div>
-            <div id="calendar-list">
+            <div class="cal-month-grid">
+                <div id="cal-grid-header" class="cal-grid-header"></div>
+                <div id="cal-grid" class="cal-grid"></div>
+            </div>
+            <div class="cal-day-panel" id="cal-day-panel">
                 <div class="placeholder-row"><span class="spinner"></span></div>
             </div>
         </div>
