@@ -67,7 +67,7 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
 .app {
     display: grid;
     grid-template-columns: 200px 1fr;
-    grid-template-rows: 52px 1fr;
+    grid-template-rows: calc(52px + env(safe-area-inset-top)) 1fr;
     height: 100vh;
     overflow: hidden;
 }
@@ -1090,7 +1090,7 @@ button, [role="button"], .nav-item, .digest-row, .email-row, .node-row, .simple-
     /* Shell: drop sidebar column, add tab-bar row */
     .app {
         grid-template-columns: 1fr;
-        grid-template-rows: 52px auto 1fr;
+        grid-template-rows: calc(52px + env(safe-area-inset-top)) auto 1fr;
         height: 100dvh; /* respects iOS dynamic URL bar */
         height: 100vh;  /* fallback */
     }
