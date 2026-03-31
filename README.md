@@ -25,7 +25,16 @@ A personal Chief of Staff app that consolidates your email digests and calendar 
 
 ## Overview
 
-Aide is a self-hosted web app. It runs as a single Fastify server (or a Vercel serverless function in production) backed by a Turso SQLite database. All email and calendar data stays in your own database — nothing is sent to third-party services beyond Google (for data) and Anthropic (for AI summaries).
+Your inbox is a firehose. Your calendar is a puzzle. Every morning you piece them together yourself — skimming newsletters, cross-referencing meeting times, trying to figure out what actually matters today. That's the problem Aide solves.
+
+**Aide is your personal chief of staff.** It pulls your email digests and Google Calendar into a single, clean dashboard, then uses Claude AI to summarise the noise into signal. Instead of opening five tabs, you open one. Instead of reading every newsletter in full, you read the paragraph that matters.
+
+- **One dashboard for everything** — your schedule and your digests side by side, so you always know what's coming and what's worth your attention.
+- **AI-powered summaries** — Claude reads your forwarded newsletters and digest emails and distills them into a short, scannable brief. No more scrolling through walls of text.
+- **Your data, your infrastructure** — Aide is self-hosted. Email and calendar data live in a database you control. Nothing is shared with third-party services beyond Google (as the data source) and Anthropic (for AI processing).
+- **Zero lock-in** — forward any email from any account, connect any Google Calendar. Aide works with what you already have.
+
+Aide runs as a single Fastify server (or a Vercel serverless function in production) backed by a Turso SQLite database.
 
 ---
 
