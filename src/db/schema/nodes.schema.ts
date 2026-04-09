@@ -22,7 +22,7 @@ export const nodes = sqliteTable('nodes', {
   user_id:        text('user_id').notNull().default(''),
   parent_id:      text('parent_id'),                    // self-ref FK — applied via index below
   type:           text('type', {
-                    enum: ['idea', 'project', 'todo', 'event', 'grocery_item', 'habit'],
+                    enum: ['idea', 'project', 'todo', 'event', 'grocery_item', 'habit', 'meal', 'recipe'],
                   }).notNull(),
   title:          text('title').notNull(),
   description:    text('description'),
@@ -81,4 +81,25 @@ export interface GroceryMetadata {
   typical_quantity?:  number;
 }
 
-export type NodeMetadata = HabitMetadata | EventMetadata | GroceryMetadata | Record<string, unknown>;
+export interface MealIngredient {
+  name:      string;
+  quantity?: number;
+  unit?:     string;
+}
+
+export interface MealMetadata {
+  meal_time?:   'breakfast' | 'lunch' | 'dinner' | 'snack';
+  servings?:    number;
+  recipe_id?:   string;
+  ingredients?: MealIngredient[];
+}
+
+export interface RecipeMetadata {
+  servings?:    number;
+  ingredients?: MealIngredient[];
+  prep_mins?:   number;
+  cook_mins?:   number;
+  tags?:        string[];
+}
+
+export type NodeMetadata = HabitMetadata | EventMetadata | GroceryMetadata | MealMetadata | RecipeMetadata | Record<string, unknown>;

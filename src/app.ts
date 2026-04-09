@@ -14,6 +14,7 @@ import './db/client.js';
 // Domain routers
 import { tasksRouter }        from './domains/tasks/tasks.router.js';
 import { emailRouter }        from './domains/email/email.router.js';
+import { mealsRouter }        from './domains/meals/meals.router.js';
 import { googleAuthRouter }   from './integrations/google/google-auth.router.js';
 import { gmailSyncRouter }    from './integrations/google/gmail-sync.router.js';
 import { calendarSyncRouter } from './integrations/google/calendar-sync.router.js';
@@ -60,6 +61,7 @@ export async function buildApp(options: { publicDir?: string } = {}) {
     await app.register(async (v1) => {
         await v1.register(tasksRouter);
         await v1.register(emailRouter);
+        await v1.register(mealsRouter);
     }, { prefix: '/api/v1' });
 
     app.setErrorHandler(errorHandler);

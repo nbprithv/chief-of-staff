@@ -22,7 +22,7 @@ export type Pagination = z.infer<typeof PaginationSchema>;
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const NodeType = z.enum([
-  'idea', 'project', 'todo', 'event', 'grocery_item', 'habit',
+  'idea', 'project', 'todo', 'event', 'grocery_item', 'habit', 'meal', 'recipe',
 ]);
 
 export const NodeStatus = z.enum([
@@ -60,9 +60,33 @@ export const GroceryMetadataSchema = z.object({
   typical_quantity:  z.number().positive().optional(),
 });
 
+export const MealIngredientSchema = z.object({
+  name:     z.string().min(1),
+  quantity: z.number().positive().optional(),
+  unit:     z.string().optional(),
+});
+
+export const MealMetadataSchema = z.object({
+  meal_time:   z.enum(['breakfast', 'lunch', 'dinner', 'snack']).optional(),
+  servings:    z.number().positive().optional(),
+  recipe_id:   z.string().optional(),
+  ingredients: z.array(MealIngredientSchema).default([]),
+});
+
+export const RecipeMetadataSchema = z.object({
+  servings:    z.number().positive().optional(),
+  ingredients: z.array(MealIngredientSchema).default([]),
+  prep_mins:   z.number().nonnegative().optional(),
+  cook_mins:   z.number().nonnegative().optional(),
+  tags:        z.array(z.string()).default([]),
+});
+
 export type HabitMetadata   = z.infer<typeof HabitMetadataSchema>;
 export type EventMetadata   = z.infer<typeof EventMetadataSchema>;
 export type GroceryMetadata = z.infer<typeof GroceryMetadataSchema>;
+export type MealIngredient  = z.infer<typeof MealIngredientSchema>;
+export type MealMetadata    = z.infer<typeof MealMetadataSchema>;
+export type RecipeMetadata  = z.infer<typeof RecipeMetadataSchema>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Node — create / update / read

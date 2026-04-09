@@ -46,4 +46,10 @@ export const api = {
     nodeCreate: (body)=> request('POST',   `${BASE}/nodes`, body),
     nodeUpdate: (id, body) => request('PATCH',  `${BASE}/nodes/${id}`, body),
     nodeDelete: (id)  => request('DELETE', `${BASE}/nodes/${id}`),
+
+    // ── Meals ─────────────────────────────────────────────────────────────────
+    meals:              (q)    => request('GET',    `${BASE}/meals?${new URLSearchParams(q || {})}`),
+    mealCreate:         (body) => request('POST',   `${BASE}/meals`, body),
+    mealDelete:         (id)   => request('DELETE', `${BASE}/meals/${id}`),
+    mealGenerateGrocery:(body) => request('POST',   `${BASE}/meals/grocery-list`, body ?? {}),
 };

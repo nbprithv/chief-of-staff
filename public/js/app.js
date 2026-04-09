@@ -3,8 +3,9 @@ import { stripHtml } from './email-parser.js';
 
 const DIGEST_QUERY = '(in:sent OR in:drafts) subject:"Galloway School Digest"';
 
-const emailsById  = new Map();
-const eventsById  = new Map();
+const emailsById = new Map();
+const eventsById = new Map();
+const todosById  = new Map();
 
 /** ISO datetime string for 20 days ago — used to filter email fetches. */
 function since20Days() {
@@ -16,42 +17,30 @@ function since20Days() {
 
 // ── Navigation ─────────────────────────────────────────────────────────────────
 
-const MAIN_VIEWS = new Set(['dashboard', 'digests', 'calendar', 'settings']);
+const MAIN_VIEWS = new Set(['calendar', 'dashboard', 'digests', 'settings']);
 
-// Apply DOM changes for a given view name without touching the URL.
 function applyViewDOM(name) {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelector(`.nav-item[data-view="${name}"]`)?.classList.add('active');
     document.getElementById(`view-${name}`)?.classList.add('active');
     if (name === 'digests')  loadDigests();
-    if (name === 'calendar') loadCalendar();
+    if (name === 'calendar') ensureCalendarLoaded();
+    if (name === 'dashboard') loadDashboard();
 }
 
-// Navigate to a named view — updates the hash so the browser records history.
-function switchView(name) {
-    location.hash = name;
-}
+function switchView(name) { location.hash = name; }
 
-// Navigate to an email detail — hash becomes #email/<id>.
-function navigateToEmail(email) {
-    location.hash = `email/${email.id}`;
-}
+function navigateToEmail(email) { location.hash = `email/${email.id}`; }
+function navigateToEvent(event) { location.hash = `event/${event.id}`; }
 
-// Navigate to an event detail — hash becomes #event/<id>.
-function navigateToEvent(event) {
-    location.hash = `event/${event.id}`;
-}
-
-// Read the current hash and apply the matching view/detail.
 function applyHash() {
-    const hash = location.hash.slice(1); // strip leading '#'
+    const hash = location.hash.slice(1);
 
     if (hash.startsWith('email/')) {
         const id    = hash.slice(6);
         const email = emailsById.get(id);
         if (email) { renderEmailView(email); applyViewDOM('email'); return; }
-        // ID not in memory — fall through to digests
         applyViewDOM('digests');
         return;
     }
@@ -64,7 +53,7 @@ function applyHash() {
         return;
     }
 
-    const view = MAIN_VIEWS.has(hash) ? hash : 'dashboard';
+    const view = MAIN_VIEWS.has(hash) ? hash : 'calendar';
     applyViewDOM(view);
 }
 
@@ -74,7 +63,6 @@ function initNav() {
     });
     document.getElementById('dash-cal-link')?.addEventListener('click',     () => switchView('calendar'));
     document.getElementById('dash-digests-link')?.addEventListener('click', () => switchView('digests'));
-
     window.addEventListener('hashchange', applyHash);
 }
 
@@ -104,31 +92,26 @@ async function loadUser() {
 // ── Metrics ────────────────────────────────────────────────────────────────────
 
 async function loadMetrics() {
-    // Calendar counts
     try {
         const { nodes = [] } = await api.nodes({ type: 'event', limit: 500 });
         const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
         const todayEnd   = new Date(); todayEnd.setHours(23, 59, 59, 999);
         const weekEnd    = new Date(todayStart); weekEnd.setDate(todayStart.getDate() + 7);
 
-        const todayCount = nodes.filter(n => {
+        document.getElementById('m-today').textContent = nodes.filter(n => {
             const t = n.due_at ? new Date(n.due_at) : null;
             return t && t >= todayStart && t <= todayEnd;
         }).length;
 
-        const weekCount = nodes.filter(n => {
+        document.getElementById('m-week').textContent = nodes.filter(n => {
             const t = n.due_at ? new Date(n.due_at) : null;
             return t && t >= todayStart && t < weekEnd;
         }).length;
-
-        document.getElementById('m-today').textContent = todayCount;
-        document.getElementById('m-week').textContent  = weekCount;
     } catch {
         document.getElementById('m-today').textContent = '—';
         document.getElementById('m-week').textContent  = '—';
     }
 
-    // Digest count
     try {
         const { emails = [] } = await api.emails({ limit: 500 });
         document.getElementById('m-digests').textContent = emails.length;
@@ -138,7 +121,6 @@ async function loadMetrics() {
         document.getElementById('m-digests').textContent = '—';
     }
 
-    // Last sync (stored in localStorage)
     const lastSync = localStorage.getItem('lastSync');
     const syncEl = document.getElementById('m-sync');
     if (syncEl) syncEl.textContent = lastSync ? relativeTime(new Date(lastSync)) : 'never';
@@ -153,7 +135,7 @@ function relativeTime(date) {
     return `${Math.floor(hrs / 24)}d ago`;
 }
 
-// ── Dashboard ──────────────────────────────────────────────────────────────────
+// ── Dashboard (Overview) ───────────────────────────────────────────────────────
 
 async function loadDashboard() {
     await Promise.all([loadSchedule(), loadRecentDigests()]);
@@ -179,7 +161,6 @@ async function loadSchedule() {
             return;
         }
 
-        // Group by day
         const groups = new Map();
         for (const n of upcoming) {
             const d = new Date(n.due_at); d.setHours(0, 0, 0, 0);
@@ -221,12 +202,10 @@ async function loadRecentDigests() {
 
     try {
         const { emails = [] } = await api.emails({ limit: 8, since: since20Days() });
-
         if (emails.length === 0) {
             container.innerHTML = emptyState('No digests — sync to load');
             return;
         }
-
         emails.forEach(e => emailsById.set(e.id, e));
         container.innerHTML = emails.map(renderDigestRow).join('');
     } catch {
@@ -248,14 +227,11 @@ async function loadDigests() {
 
     try {
         const { emails = [] } = await api.emails({ limit: 500, since: since20Days() });
-
         if (countEl) countEl.textContent = `${emails.length} digest${emails.length !== 1 ? 's' : ''}`;
-
         if (emails.length === 0) {
             container.innerHTML = emptyState('No digests — click Sync to fetch');
             return;
         }
-
         emails.forEach(e => emailsById.set(e.id, e));
         container.innerHTML = emails.map(renderEmailRow).join('');
     } catch {
@@ -263,19 +239,23 @@ async function loadDigests() {
     }
 }
 
-// ── Calendar view ──────────────────────────────────────────────────────────────
+// ── Calendar: month grid ───────────────────────────────────────────────────────
 
 const calState = {
     loaded:       false,
     year:         new Date().getFullYear(),
     month:        new Date().getMonth(),
     selectedDate: null,
-    dateMap:      null,   // Map<'YYYY-MM-DD', node[]>
+    dateMap:      null,  // Map<'YYYY-MM-DD', event[]>
 };
 
 function dateKey(dt) {
-    // Returns 'YYYY-MM-DD' in local time
     const d = new Date(dt);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function localDateKey(d) {
+    // Use local year/month/date to avoid UTC-shift bugs when parsing YYYY-MM-DD
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -291,8 +271,8 @@ function buildEventsDateMap(nodes) {
 
 function renderCalendarMonth() {
     const { year, month, dateMap, selectedDate } = calState;
-    const today      = dateKey(new Date());
-    const firstDow   = new Date(year, month, 1).getDay();  // 0=Sun
+    const today      = localDateKey(new Date());
+    const firstDow   = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
     const monthLabel = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -332,51 +312,272 @@ function renderCalendarMonth() {
     if (gridEl) gridEl.innerHTML = cells;
 }
 
-function renderDayEvents(key) {
+// ── Calendar: day panel (Schedule + Meals + Focus) ─────────────────────────────
+
+async function renderDayPanel(key) {
     calState.selectedDate = key;
+    renderCalendarMonth(); // update selection highlight
+
     const panel = document.getElementById('cal-day-panel');
     if (!panel) return;
-
-    const events = (calState.dateMap?.get(key) ?? [])
-        .slice()
-        .sort((a, b) => (a.starts_at || a.due_at || '').localeCompare(b.starts_at || b.due_at || ''));
 
     const label = new Date(key + 'T12:00:00').toLocaleDateString('en-US', {
         weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
     });
 
-    if (events.length === 0) {
-        panel.innerHTML = `<div class="cal-day-panel-label">${label}</div>
-            <div class="cal-no-events">No events</div>`;
-        return;
+    panel.innerHTML = `<div class="cal-day-panel-label">${label}</div>
+        <div class="placeholder-row"><span class="spinner"></span></div>`;
+
+    const today = localDateKey(new Date());
+    const isToday = key === today;
+
+    // Fetch events, meals, and todos in parallel
+    const [mealsResult, todosResult] = await Promise.all([
+        api.meals({ date: key }).catch(() => ({ meals: [] })),
+        api.nodes({ type: 'todo', status: 'todo', due_before: key + 'T23:59:59.999Z', limit: 200 })
+            .catch(() => ({ nodes: [] })),
+    ]);
+
+    const dayEvents = (calState.dateMap?.get(key) ?? [])
+        .slice()
+        .sort((a, b) => (a.starts_at || a.due_at || '').localeCompare(b.starts_at || b.due_at || ''));
+
+    const meals = mealsResult.meals ?? [];
+
+    // Todos: show those due ON this date; for today also include overdue
+    const allTodos = todosResult.nodes ?? [];
+    allTodos.forEach(n => todosById.set(n.id, n));
+
+    const dayTodos = allTodos.filter(n => {
+        if (!n.due_at) return false;
+        const d = new Date(n.due_at);
+        const nKey = localDateKey(d);
+        if (nKey === key) return true;
+        if (isToday && nKey < key) return true; // overdue, surface on today
+        return false;
+    }).sort((a, b) => {
+        // Sort: overdue P0 first, then by due_at
+        if (a.priority !== b.priority) return a.priority.localeCompare(b.priority);
+        return (a.due_at || '').localeCompare(b.due_at || '');
+    });
+
+    const mealOrder = { breakfast: 0, lunch: 1, dinner: 2, snack: 3 };
+    const sortedMeals = meals.slice().sort((a, b) => {
+        const ma = safeJson(a.metadata); const mb = safeJson(b.metadata);
+        return (mealOrder[ma.meal_time] ?? 99) - (mealOrder[mb.meal_time] ?? 99);
+    });
+
+    let html = `<div class="cal-day-panel-label">${label}</div>`;
+
+    // ── Schedule section ──────────────────────────────────────────────────────
+    html += `<div class="day-section">
+        <div class="day-section-header">
+            <span class="day-section-label">Schedule</span>
+            ${dayEvents.length ? `<span class="day-section-count">${dayEvents.length} event${dayEvents.length !== 1 ? 's' : ''}</span>` : ''}
+        </div>`;
+
+    if (dayEvents.length === 0) {
+        html += `<div class="day-empty">No events</div>`;
+    } else {
+        html += dayEvents.map(n => {
+            const meta = safeJson(n.metadata);
+            let timeHtml;
+            if (meta.all_day) {
+                timeHtml = `<div class="cal-ev-allday">All day</div>`;
+            } else {
+                const dt   = new Date(n.starts_at || n.due_at);
+                const hour = dt.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true }).replace(/\s?(AM|PM)/i, '');
+                const ampm = dt.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true }).match(/AM|PM/i)?.[0] ?? '';
+                const mins = dt.getMinutes() ? `:${String(dt.getMinutes()).padStart(2, '0')}` : '';
+                timeHtml = `<div class="cal-ev-time">${hour}${mins}<span class="cal-ev-time-ampm">${ampm}</span></div>`;
+            }
+            return `<div class="cal-ev-item" data-id="${escHtml(n.id)}">
+                <div>${timeHtml}</div>
+                <div>
+                    <div class="cal-ev-name">${escHtml(n.title)}</div>
+                    ${n.location ? `<div class="cal-ev-loc">${escHtml(n.location)}</div>` : ''}
+                </div>
+            </div>`;
+        }).join('');
+    }
+    html += `</div>`;
+
+    // ── Meals section ─────────────────────────────────────────────────────────
+    html += `<div class="day-section">
+        <div class="day-section-header">
+            <span class="day-section-label">Meals</span>
+            ${sortedMeals.length ? `<span class="day-section-count">${sortedMeals.length} planned</span>` : ''}
+            <button class="day-section-action" id="meal-add-toggle">+ Plan meal</button>
+        </div>`;
+
+    if (sortedMeals.length > 0) {
+        html += sortedMeals.map(m => {
+            const meta  = safeJson(m.metadata);
+            const time  = meta.meal_time ?? 'meal';
+            const ings  = (meta.ingredients ?? []).slice(0, 4).map(i => i.name).join(', ');
+            const extra = (meta.ingredients ?? []).length > 4
+                ? ` +${(meta.ingredients ?? []).length - 4} more` : '';
+            return `<div class="meal-ev-item">
+                <div><span class="meal-time-chip meal-time-chip--${time}">${time}</span></div>
+                <div>
+                    <div class="meal-ev-name">${escHtml(m.title)}</div>
+                    ${ings ? `<div class="meal-ev-ingredients">${escHtml(ings)}${extra}</div>` : ''}
+                </div>
+                <button class="meal-ev-delete" data-meal-id="${escHtml(m.id)}" title="Remove meal">×</button>
+            </div>`;
+        }).join('');
+    } else {
+        html += `<div class="day-empty">No meals planned</div>`;
     }
 
-    const rows = events.map(n => {
-        const meta = safeJson(n.metadata);
-        let timeHtml;
-        if (meta.all_day) {
-            timeHtml = `<div class="cal-ev-allday">All day</div>`;
-        } else {
-            const dt   = new Date(n.starts_at || n.due_at);
-            const hour = dt.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true }).replace(/\s?(AM|PM)/i, '');
-            const ampm = dt.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true }).match(/AM|PM/i)?.[0] ?? '';
-            const mins = dt.getMinutes() ? `:${String(dt.getMinutes()).padStart(2, '0')}` : '';
-            timeHtml = `<div class="cal-ev-time">${hour}${mins}<span class="cal-ev-time-ampm">${ampm}</span></div>`;
-        }
-        return `<div class="cal-ev-item" data-id="${escHtml(n.id)}">
-            <div>${timeHtml}</div>
-            <div>
-                <div class="cal-ev-name">${escHtml(n.title)}</div>
-                ${n.location ? `<div class="cal-ev-loc">${escHtml(n.location)}</div>` : ''}
-            </div>
-        </div>`;
-    }).join('');
+    // Meal add form (hidden by default)
+    html += `<form class="meal-add-form" id="meal-add-form" data-date="${key}">
+        <div class="meal-add-row">
+            <select class="meal-add-select" name="meal_time">
+                <option value="breakfast">Breakfast</option>
+                <option value="lunch">Lunch</option>
+                <option value="dinner" selected>Dinner</option>
+                <option value="snack">Snack</option>
+            </select>
+            <input class="meal-add-input" type="text" name="title" placeholder="What are you making?" autocomplete="off" required>
+        </div>
+        <div class="meal-add-actions">
+            <button type="button" class="btn-ghost" id="meal-add-cancel">Cancel</button>
+            <button type="submit" class="btn-primary">Add</button>
+        </div>
+    </form>`;
 
-    panel.innerHTML = `<div class="cal-day-panel-label">${label}</div>${rows}`;
+    html += `</div>`;
+
+    // ── Focus / Tasks section ─────────────────────────────────────────────────
+    const today2 = localDateKey(new Date());
+    html += `<div class="day-section">
+        <div class="day-section-header">
+            <span class="day-section-label">Focus</span>
+            ${dayTodos.length ? `<span class="day-section-count">${dayTodos.length} task${dayTodos.length !== 1 ? 's' : ''}</span>` : ''}
+        </div>`;
+
+    if (dayTodos.length === 0) {
+        html += `<div class="day-empty">No tasks due</div>`;
+    } else {
+        html += dayTodos.map(n => {
+            const isDone    = n.status === 'done';
+            const dKey      = n.due_at ? localDateKey(new Date(n.due_at)) : null;
+            const isOverdue = dKey && dKey < today2 && !isDone;
+            const dueLabel  = n.due_at
+                ? new Date(n.due_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                : '';
+            return `<div class="todo-ev-item${isDone ? ' done' : ''}" data-id="${escHtml(n.id)}">
+                <div class="todo-ev-check-col">
+                    <div class="todo-ev-check${isDone ? ' checked' : ''}" data-todo-id="${escHtml(n.id)}">${isDone ? '✓' : ''}</div>
+                </div>
+                <div>
+                    <div class="todo-ev-title">${escHtml(n.title)}</div>
+                    <div class="todo-ev-meta${isOverdue ? ' overdue' : ''}">
+                        ${n.priority !== 'p2' && n.priority !== 'p3' ? `${n.priority.toUpperCase()}  ·  ` : ''}${isOverdue ? 'overdue · ' : ''}${dueLabel}
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+    html += `</div>`;
+
+    panel.innerHTML = html;
+    bindDayPanelEvents(key);
+}
+
+function bindDayPanelEvents(key) {
+    const panel = document.getElementById('cal-day-panel');
+    if (!panel) return;
+
+    // Calendar event click → detail view
+    panel.querySelectorAll('.cal-ev-item[data-id]').forEach(el => {
+        el.addEventListener('click', () => navigateToEvent(eventsById.get(el.dataset.id)));
+    });
+
+    // Meal delete
+    panel.querySelectorAll('.meal-ev-delete').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.mealId;
+            try {
+                await api.mealDelete(id);
+                await renderDayPanel(key);
+            } catch { /* ignore */ }
+        });
+    });
+
+    // Meal add toggle
+    const toggle = document.getElementById('meal-add-toggle');
+    const form   = document.getElementById('meal-add-form');
+    toggle?.addEventListener('click', () => {
+        form?.classList.add('open');
+        form?.querySelector('input[name="title"]')?.focus();
+    });
+
+    document.getElementById('meal-add-cancel')?.addEventListener('click', () => {
+        form?.classList.remove('open');
+        if (form) form.reset();
+    });
+
+    // Meal add submit
+    form?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd       = new FormData(form);
+        const title    = fd.get('title')?.toString().trim();
+        const mealTime = fd.get('meal_time')?.toString();
+        if (!title) return;
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) { submitBtn.textContent = 'Adding…'; submitBtn.disabled = true; }
+
+        try {
+            await api.mealCreate({
+                type:     'meal',
+                title,
+                due_at:   key + 'T12:00:00.000Z',
+                status:   'active',
+                priority: 'p2',
+                metadata: { meal_time: mealTime, ingredients: [] },
+            });
+            await renderDayPanel(key);
+        } catch {
+            if (submitBtn) { submitBtn.textContent = 'Add'; submitBtn.disabled = false; }
+        }
+    });
+
+    // Todo check toggle
+    panel.querySelectorAll('.todo-ev-check').forEach(check => {
+        check.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const id   = check.dataset.todoId;
+            const todo = todosById.get(id);
+            if (!todo) return;
+            const newStatus = todo.status === 'done' ? 'todo' : 'done';
+            try {
+                await api.nodeUpdate(id, { status: newStatus });
+                todosById.set(id, { ...todo, status: newStatus });
+                const item = check.closest('.todo-ev-item');
+                if (item) {
+                    item.classList.toggle('done', newStatus === 'done');
+                    check.classList.toggle('checked', newStatus === 'done');
+                    check.textContent = newStatus === 'done' ? '✓' : '';
+                    item.querySelector('.todo-ev-title').style.textDecoration =
+                        newStatus === 'done' ? 'line-through' : '';
+                }
+            } catch { /* ignore */ }
+        });
+    });
+}
+
+// ── Calendar: load + init ──────────────────────────────────────────────────────
+
+async function ensureCalendarLoaded() {
+    if (calState.loaded) return;
+    await loadCalendar();
 }
 
 async function loadCalendar() {
-    if (calState.loaded) return;
     calState.loaded = true;
 
     const countEl = document.getElementById('calendar-count');
@@ -385,21 +586,15 @@ async function loadCalendar() {
     try {
         const { nodes = [] } = await api.nodes({ type: 'event', limit: 500 });
         nodes.forEach(n => eventsById.set(n.id, n));
-
         calState.dateMap = buildEventsDateMap(nodes);
 
         if (countEl) countEl.textContent = `${nodes.length} event${nodes.length !== 1 ? 's' : ''}`;
 
         renderCalendarMonth();
 
-        // Auto-select today if it has events, otherwise show placeholder
-        const today = dateKey(new Date());
-        if (calState.dateMap.has(today)) {
-            renderDayEvents(today);
-            renderCalendarMonth(); // refresh selection highlight
-        } else if (panel) {
-            panel.innerHTML = `<div class="cal-no-events">Select a date to see events</div>`;
-        }
+        // Always open today's panel on first load
+        const today = localDateKey(new Date());
+        await renderDayPanel(today);
     } catch {
         if (panel) panel.innerHTML = emptyState('Could not load events');
     }
@@ -421,15 +616,11 @@ function initCalendarNav() {
     document.getElementById('cal-grid')?.addEventListener('click', e => {
         const cell = e.target.closest('[data-date]');
         if (!cell) return;
-        renderDayEvents(cell.dataset.date);
-        renderCalendarMonth();
-    });
-
-    document.getElementById('cal-day-panel')?.addEventListener('click', e => {
-        const row = e.target.closest('[data-id]');
-        if (row) navigateToEvent(eventsById.get(row.dataset.id));
+        renderDayPanel(cell.dataset.date);
     });
 }
+
+// ── Theme toggle ───────────────────────────────────────────────────────────────
 
 function initThemeToggle() {
     const saved = localStorage.getItem('theme');
@@ -439,10 +630,10 @@ function initThemeToggle() {
     updateThemeIcon();
 
     document.getElementById('theme-toggle-btn')?.addEventListener('click', () => {
-        const current = document.documentElement.getAttribute('data-theme');
-        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const isDark = current === 'dark' || (!current && systemDark);
-        const next = isDark ? 'light' : 'dark';
+        const current  = document.documentElement.getAttribute('data-theme');
+        const sysDark  = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const isDark   = current === 'dark' || (!current && sysDark);
+        const next     = isDark ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', next);
         localStorage.setItem('theme', next);
         updateThemeIcon();
@@ -452,9 +643,9 @@ function initThemeToggle() {
 function updateThemeIcon() {
     const btn = document.getElementById('theme-toggle-btn');
     if (!btn) return;
-    const current   = document.documentElement.getAttribute('data-theme');
-    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const isDark    = current === 'dark' || (!current && systemDark);
+    const current  = document.documentElement.getAttribute('data-theme');
+    const sysDark  = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const isDark   = current === 'dark' || (!current && sysDark);
     btn.textContent = isDark ? '☀' : '☾';
     btn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
 }
@@ -482,7 +673,8 @@ function initSyncButtons() {
         try {
             await api.calendarSync({});
             calState.loaded = false; calState.dateMap = null;
-            await Promise.all([loadCalendar(), loadMetrics()]);
+            await loadCalendar();
+            await loadMetrics();
         } finally {
             if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
         }
@@ -502,7 +694,8 @@ async function syncAll() {
 
         digestsLoaded  = false;
         calState.loaded = false; calState.dateMap = null;
-        await Promise.all([loadMetrics(), loadDashboard()]);
+
+        await Promise.all([loadMetrics(), loadCalendar()]);
     } finally {
         if (btn) { btn.textContent = '↻ Sync'; btn.disabled = false; }
     }
@@ -534,14 +727,13 @@ function renderDigestRow(email) {
     </div>`;
 }
 
-
 function renderEmailRow(email) {
     const date = email.received_at
         ? new Date(email.received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
         : '';
-    const raw = email.body_raw || '';
-    const isHtml = /<[a-z][^>]*>/i.test(raw);
-    const text = isHtml ? stripHtml(raw) : raw;
+    const raw     = email.body_raw || '';
+    const isHtml  = /<[a-z][^>]*>/i.test(raw);
+    const text    = isHtml ? stripHtml(raw) : raw;
     const preview = text.replace(/\s+/g, ' ').trim().slice(0, 120);
     return `<div class="email-row" data-id="${escHtml(email.id)}">
         <div class="email-row-main">
@@ -570,35 +762,28 @@ function safeJson(str) {
 
 // ── Email detail view ──────────────────────────────────────────────────────────
 
-// Convert HTML email to readable DOM nodes, preserving <a> hyperlinks.
 function htmlToReadableNodes(html) {
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
-
     tmp.querySelectorAll('style, script, head, meta, link, noscript').forEach(el => el.remove());
 
     const frag = document.createDocumentFragment();
 
     function walk(node) {
         if (node.nodeType === Node.TEXT_NODE) {
-            const text = node.textContent;
-            if (text) frag.appendChild(document.createTextNode(text));
+            if (node.textContent) frag.appendChild(document.createTextNode(node.textContent));
             return;
         }
         if (node.nodeType !== Node.ELEMENT_NODE) return;
 
         const tag = node.tagName.toLowerCase();
-
         if (tag === 'a') {
-            const href = node.getAttribute('href') || '';
+            const href  = node.getAttribute('href') || '';
             const label = node.textContent.trim();
             if (href && href.startsWith('http')) {
                 const link = document.createElement('a');
-                link.href = href;
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-                link.textContent = label || href;
-                link.className = 'email-link';
+                link.href = href; link.target = '_blank'; link.rel = 'noopener noreferrer';
+                link.textContent = label || href; link.className = 'email-link';
                 frag.appendChild(link);
             } else {
                 frag.appendChild(document.createTextNode(label));
@@ -622,14 +807,11 @@ function htmlToReadableNodes(html) {
     return span;
 }
 
-// Populate the email detail view DOM without changing the URL.
 function renderEmailView(email) {
     document.getElementById('email-detail-subject').textContent = email.subject || '(no subject)';
 
     const parts = [];
-    if (email.sender_name || email.sender_email) {
-        parts.push(`From: ${email.sender_name || email.sender_email}`);
-    }
+    if (email.sender_name || email.sender_email) parts.push(`From: ${email.sender_name || email.sender_email}`);
     if (email.received_at) {
         parts.push(new Date(email.received_at).toLocaleDateString('en-US', {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -641,11 +823,8 @@ function renderEmailView(email) {
     const bodyEl = document.getElementById('email-detail-body');
     const isHtml = /<(html|body|div|p|table|span|br)\b/i.test(raw);
     bodyEl.innerHTML = '';
-    if (isHtml) {
-        bodyEl.appendChild(htmlToReadableNodes(raw));
-    } else {
-        bodyEl.textContent = raw;
-    }
+    if (isHtml) bodyEl.appendChild(htmlToReadableNodes(raw));
+    else bodyEl.textContent = raw;
 }
 
 function initEmailView() {
@@ -670,10 +849,8 @@ function initEmailView() {
 
 // ── Event detail view ──────────────────────────────────────────────────────────
 
-// Populate the event detail view DOM without changing the URL.
 function renderEventView(event) {
     const meta = safeJson(event.metadata);
-
     document.getElementById('event-detail-title').textContent = event.title || '(no title)';
 
     const timeEl = document.getElementById('event-detail-time');
@@ -684,7 +861,7 @@ function renderEventView(event) {
         timeEl.textContent = `${day}  ·  All day`;
     } else {
         const fmt = dt => new Date(dt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-        const day = new Date(event.starts_at || event.due_at).toLocaleDateString('en-US', {
+        const day   = new Date(event.starts_at || event.due_at).toLocaleDateString('en-US', {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
         });
         const start = event.starts_at ? fmt(event.starts_at) : '';
@@ -717,13 +894,11 @@ function renderEventView(event) {
 
 function initEventView() {
     document.getElementById('event-back-btn')?.addEventListener('click', () => history.back());
-
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && document.getElementById('view-event')?.classList.contains('active')) {
             history.back();
         }
     });
-
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
@@ -738,13 +913,10 @@ async function boot() {
     initCalendarNav();
     initThemeToggle();
 
-    await Promise.all([
-        loadUser(),
-        loadMetrics(),
-        loadDashboard(),
-    ]);
+    // Load calendar first (primary view), then metrics and user in parallel
+    await loadCalendar();
+    await Promise.all([loadUser(), loadMetrics()]);
 
-    // Apply the initial hash (handles page refresh on a detail view or deep link).
     applyHash();
 }
 

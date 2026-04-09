@@ -28,11 +28,11 @@
     <!-- ── Sidenav ──────────────────────────────────────────────────────────── -->
     <nav class="sidenav">
         <div class="nav-section">
-            <div class="nav-item active" data-view="dashboard">Dashboard</div>
+            <div class="nav-item active" data-view="calendar">Today</div>
+            <div class="nav-item" data-view="dashboard">Overview</div>
             <div class="nav-item" data-view="digests" id="nav-digests">
                 Digests <span class="nav-badge-gray" id="badge-digests"></span>
             </div>
-            <div class="nav-item" data-view="calendar">Calendar</div>
         </div>
         <div class="nav-section">
             <div class="nav-label">Account</div>
@@ -43,8 +43,32 @@
     <!-- ── Main content ─────────────────────────────────────────────────────── -->
     <main class="main">
 
-        <!-- Dashboard view -->
-        <div class="view active" id="view-dashboard">
+        <!-- Calendar / Today view — PRIMARY -->
+        <div class="view active" id="view-calendar">
+            <div class="cal-toolbar">
+                <div class="cal-nav-group">
+                    <button class="cal-nav-btn" id="cal-prev-btn">‹</button>
+                    <span class="cal-month-label" id="cal-month-label"></span>
+                    <button class="cal-nav-btn" id="cal-next-btn">›</button>
+                </div>
+                <div class="cal-toolbar-right">
+                    <span class="section-count" id="calendar-count"></span>
+                    <button class="section-action" id="sync-calendar-btn">↻ Sync</button>
+                </div>
+            </div>
+            <div class="cal-month-grid">
+                <div id="cal-grid-header" class="cal-grid-header"></div>
+                <div id="cal-grid" class="cal-grid"></div>
+            </div>
+
+            <!-- Day panel: Schedule | Meals | Focus -->
+            <div class="cal-day-panel" id="cal-day-panel">
+                <div class="placeholder-row"><span class="spinner"></span></div>
+            </div>
+        </div>
+
+        <!-- Overview / Dashboard view -->
+        <div class="view" id="view-dashboard">
 
             <!-- Metric strip -->
             <div class="metric-strip">
@@ -97,28 +121,6 @@
                 <button class="section-action" id="sync-digests-btn">↻ Sync</button>
             </div>
             <div id="digests-list">
-                <div class="placeholder-row"><span class="spinner"></span></div>
-            </div>
-        </div>
-
-        <!-- Calendar view -->
-        <div class="view" id="view-calendar">
-            <div class="cal-toolbar">
-                <div class="cal-nav-group">
-                    <button class="cal-nav-btn" id="cal-prev-btn">‹</button>
-                    <span class="cal-month-label" id="cal-month-label"></span>
-                    <button class="cal-nav-btn" id="cal-next-btn">›</button>
-                </div>
-                <div class="cal-toolbar-right">
-                    <span class="section-count" id="calendar-count"></span>
-                    <button class="section-action" id="sync-calendar-btn">↻ Sync</button>
-                </div>
-            </div>
-            <div class="cal-month-grid">
-                <div id="cal-grid-header" class="cal-grid-header"></div>
-                <div id="cal-grid" class="cal-grid"></div>
-            </div>
-            <div class="cal-day-panel" id="cal-day-panel">
                 <div class="placeholder-row"><span class="spinner"></span></div>
             </div>
         </div>
