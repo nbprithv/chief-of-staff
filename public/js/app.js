@@ -23,7 +23,7 @@ const MAIN_VIEWS = new Set(['calendar', 'dashboard', 'digests', 'jobs', 'setting
 function applyViewDOM(name) {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    document.querySelector(`.nav-item[data-view="${name}"]`)?.classList.add('active');
+    document.querySelectorAll(`.nav-item[data-view="${name}"]`).forEach(n => n.classList.add('active'));
     document.getElementById(`view-${name}`)?.classList.add('active');
     if (name === 'digests')   loadDigests();
     if (name === 'calendar')  ensureCalendarLoaded();

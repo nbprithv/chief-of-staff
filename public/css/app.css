@@ -1371,6 +1371,10 @@ body { font-family: var(--sans); font-size: 14px; line-height: 1.5; -webkit-font
 .email-row:nth-child(2) { animation-delay: 0.06s }
 .email-row:nth-child(3) { animation-delay: 0.09s }
 
+/* ── Bottom nav (mobile only — hidden on desktop) ───────────────────────────── */
+
+.bottom-nav { display: none; }
+
 /* ── Global touch / tap improvements ────────────────────────────────────────── */
 
 button, [role="button"], .nav-item, .digest-row, .email-row, .node-row, .simple-row {
@@ -1384,7 +1388,7 @@ button, [role="button"], .nav-item, .digest-row, .email-row, .node-row, .simple-
 
     .app {
         grid-template-columns: 1fr;
-        grid-template-rows: calc(52px + env(safe-area-inset-top)) auto 1fr;
+        grid-template-rows: calc(52px + env(safe-area-inset-top)) 1fr;
         height: 100dvh;
         height: 100vh;
     }
@@ -1393,38 +1397,67 @@ button, [role="button"], .nav-item, .digest-row, .email-row, .node-row, .simple-
     .masthead-date { display: none; }
     .masthead-user { display: none; }
 
-    .sidenav {
-        flex-direction: row;
-        padding: 0 8px;
-        border-right: none;
-        border-bottom: 1px solid var(--border);
-        overflow-x: auto;
-        overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
-        gap: 4px;
-    }
-    .sidenav::-webkit-scrollbar { display: none; }
-    .sidenav-brand { display: none; }
-    .nav-section { display: contents; }
-    .nav-section + .nav-section { border-top: none; padding-top: 0; margin-top: 0; }
-    .nav-label { display: none; }
-    .nav-item {
-        flex-shrink: 0;
-        padding: 0 12px;
-        min-height: 44px;
-        font-size: 13px;
-        border-radius: var(--r-pill);
-        white-space: nowrap;
-    }
-    .nav-item:hover { background: transparent; }
-    .nav-item.active { background: var(--accent); color: #fff; }
+    /* Hide the desktop sidenav entirely on mobile */
+    .sidenav { display: none; }
 
     .main {
         padding: 16px;
-        padding-bottom: calc(16px + env(safe-area-inset-bottom));
+        /* Reserve space for the fixed bottom nav + safe area */
+        padding-bottom: calc(64px + env(safe-area-inset-bottom));
         -webkit-overflow-scrolling: touch;
     }
 
+    /* ── Bottom tab bar ───────────────────────────────────────────────────── */
+
+    .bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 50;
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        box-shadow: 0 -2px 12px rgba(0,0,0,.07);
+        /* Push content above the home-indicator on iPhone */
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .bottom-nav .nav-item {
+        flex: 1;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 2px 6px;
+        min-height: 52px;
+        gap: 3px;
+        font-size: 10px;
+        font-weight: 500;
+        color: var(--ink4);
+        border-radius: 0;
+        white-space: nowrap;
+        letter-spacing: 0;
+        /* Reset desktop active pill */
+        background: transparent !important;
+    }
+
+    .bottom-nav .nav-item.active {
+        color: var(--accent);
+        font-weight: 600;
+    }
+
+    .bottom-nav .nav-icon {
+        width: 22px;
+        height: 22px;
+        opacity: 1;
+        flex-shrink: 0;
+        /* Icon inherits color from parent */
+        color: inherit;
+    }
+
+    .bottom-nav-label { line-height: 1; }
+
+    /* Metric strip */
     .metric-strip { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px; }
     .metric-card { padding: 14px 16px; }
     .metric-value { font-size: 28px; }
