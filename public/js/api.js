@@ -52,4 +52,14 @@ export const api = {
     mealCreate:         (body) => request('POST',   `${BASE}/meals`, body),
     mealDelete:         (id)   => request('DELETE', `${BASE}/meals/${id}`),
     mealGenerateGrocery:(body) => request('POST',   `${BASE}/meals/grocery-list`, body ?? {}),
+
+    // ── Background Jobs ───────────────────────────────────────────────────────
+    jobTemplates:  ()      => request('GET',    `${BASE}/jobs/templates`),
+    jobBudget:     ()      => request('GET',    `${BASE}/jobs/budget`),
+    jobs:          ()      => request('GET',    `${BASE}/jobs`),
+    jobCreate:     (body)  => request('POST',   `${BASE}/jobs`, body),
+    jobUpdate:     (id, b) => request('PATCH',  `${BASE}/jobs/${id}`, b),
+    jobDelete:     (id)    => request('DELETE', `${BASE}/jobs/${id}`),
+    jobRuns:       (id, q) => request('GET',    `${BASE}/jobs/${id}/runs?${new URLSearchParams(q || {})}`),
+    jobRunNow:     (id)    => request('POST',   `${BASE}/jobs/${id}/run`),
 };

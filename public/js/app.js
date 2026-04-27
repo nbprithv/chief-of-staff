@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { stripHtml } from './email-parser.js';
+import { initJobs } from './jobs.js';
 
 const DIGEST_QUERY = '(in:sent OR in:drafts) subject:"Galloway School Digest"';
 
@@ -17,16 +18,17 @@ function since20Days() {
 
 // ── Navigation ─────────────────────────────────────────────────────────────────
 
-const MAIN_VIEWS = new Set(['calendar', 'dashboard', 'digests', 'settings']);
+const MAIN_VIEWS = new Set(['calendar', 'dashboard', 'digests', 'jobs', 'settings']);
 
 function applyViewDOM(name) {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelector(`.nav-item[data-view="${name}"]`)?.classList.add('active');
     document.getElementById(`view-${name}`)?.classList.add('active');
-    if (name === 'digests')  loadDigests();
-    if (name === 'calendar') ensureCalendarLoaded();
+    if (name === 'digests')   loadDigests();
+    if (name === 'calendar')  ensureCalendarLoaded();
     if (name === 'dashboard') loadDashboard();
+    if (name === 'jobs')      initJobs();
 }
 
 function switchView(name) { location.hash = name; }

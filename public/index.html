@@ -10,6 +10,126 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="/css/app.css">
+    <style>
+    /* ── Background Jobs view ─────────────────────────────────────────── */
+
+    .jobs-budget { margin-bottom: 20px; }
+    .jobs-budget-label { display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; font-size:12px; color:var(--ink2); }
+    .jobs-budget-track { height:5px; background:var(--surface-2); border-radius:99px; overflow:hidden; }
+    .jobs-budget-fill  { height:100%; border-radius:99px; transition:width .4s ease; }
+
+    .jobs-layout { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px; }
+    @media (max-width:900px) { .jobs-layout { grid-template-columns:1fr; } }
+
+    .jobs-panel-left,
+    .jobs-panel-right { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md); overflow:hidden; }
+
+    .jobs-empty { padding:32px 20px; text-align:center; font-size:13px; color:var(--ink3); }
+
+    .jobs-row { border-bottom:1px solid var(--border); }
+    .jobs-row:last-child { border-bottom:none; }
+    .jobs-row--active { background:var(--accent-bg); }
+
+    .jobs-row-main { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; cursor:pointer; }
+    .jobs-row-main:hover { background:var(--surface-1); }
+    .jobs-row-left  { display:flex; align-items:center; gap:10px; flex:1; min-width:0; }
+
+    .jobs-dot { display:inline-block; width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+    .jobs-dot--on  { background:var(--green); box-shadow:0 0 0 2px var(--green-bg); }
+    .jobs-dot--off { background:var(--ink4); }
+
+    .jobs-row-name { font-size:13px; font-weight:500; color:var(--ink); }
+    .jobs-row-meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:2px; font-family:var(--mono); font-size:10px; color:var(--ink3); }
+    .jobs-tag { background:var(--surface-2); border:1px solid var(--border); border-radius:3px; padding:1px 6px; font-size:9px; }
+
+    .jobs-row-actions { display:flex; gap:4px; flex-shrink:0; }
+
+    .jobs-btn-sm {
+        font-family:var(--mono); font-size:11px; padding:3px 8px; border-radius:3px; cursor:pointer;
+        border:1.5px solid var(--border); background:var(--surface); color:var(--ink2);
+        transition:all .12s; line-height:1.5;
+    }
+    .jobs-btn-sm:hover { border-color:var(--ink3); color:var(--ink); }
+    .jobs-btn-sm--danger:hover { border-color:var(--red); color:var(--red); }
+
+    /* Runs panel */
+    .jobs-runs-header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border); }
+    .jobs-runs-title  { font-size:13px; font-weight:500; color:var(--ink); }
+    .jobs-runs-empty,
+    .jobs-runs-loading,
+    .jobs-runs-error  { padding:32px 20px; text-align:center; font-size:12px; color:var(--ink3); display:flex; align-items:center; justify-content:center; gap:8px; }
+    .jobs-runs-error  { color:var(--red); }
+
+    .jobs-run-row { padding:10px 16px; border-bottom:1px solid var(--border); }
+    .jobs-run-row:last-child { border-bottom:none; }
+    .jobs-run-row.run-ok   { border-left:3px solid var(--green); }
+    .jobs-run-row.run-err  { border-left:3px solid var(--red); }
+    .jobs-run-row.run-skip { border-left:3px solid var(--ink4); }
+    .jobs-run-row.run-run  { border-left:3px solid var(--amber); }
+
+    .jobs-run-meta   { display:flex; gap:10px; align-items:center; margin-bottom:5px; font-family:var(--mono); font-size:10px; color:var(--ink3); }
+    .jobs-run-status { font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+    .run-ok   .jobs-run-status { color:var(--green); }
+    .run-err  .jobs-run-status { color:var(--red); }
+    .run-skip .jobs-run-status { color:var(--ink4); }
+    .jobs-run-output { font-size:12px; color:var(--ink2); line-height:1.6; white-space:pre-wrap; }
+    .jobs-run-error  { font-size:11px; color:var(--red); font-family:var(--mono); }
+
+    /* Drawer */
+    .jobs-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:99; }
+    .jobs-overlay.active { display:block; }
+
+    .jobs-drawer {
+        display:none; position:fixed; top:0; right:0; bottom:0; width:min(520px,100vw);
+        background:var(--surface); border-left:1px solid var(--border);
+        box-shadow:var(--shadow-md); z-index:100; overflow-y:auto;
+        transform:translateX(100%); transition:transform .2s ease;
+    }
+    .jobs-drawer.active { display:block; transform:translateX(0); }
+
+    .jobs-drawer-header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border); }
+    .jobs-drawer-title  { font-size:15px; font-weight:600; color:var(--ink); }
+    .jobs-drawer-close  { background:none; border:none; cursor:pointer; font-size:16px; color:var(--ink3); padding:4px; }
+
+    .jobs-form { padding:20px; display:flex; flex-direction:column; gap:16px; }
+    .jobs-field { display:flex; flex-direction:column; gap:5px; }
+    .jobs-field label { font-size:11px; font-weight:600; color:var(--ink2); text-transform:uppercase; letter-spacing:.04em; }
+    .jobs-field-hint  { font-size:10px; font-weight:400; text-transform:none; letter-spacing:0; color:var(--ink3); }
+    .jobs-field--row  { flex-direction:row; align-items:center; gap:10px; }
+    .jobs-field--row label { min-width:120px; }
+
+    .jobs-form input[type="text"],
+    .jobs-form select,
+    .jobs-form textarea {
+        font-family:var(--sans); font-size:13px; padding:8px 10px;
+        border:1.5px solid var(--border); border-radius:var(--r-sm);
+        background:var(--surface); color:var(--ink); outline:none; resize:vertical;
+    }
+    .jobs-form input:focus,
+    .jobs-form select:focus,
+    .jobs-form textarea:focus { border-color:var(--accent); }
+
+    .jobs-freq-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+    .jobs-time-input { width:54px; font-family:var(--mono) !important; text-align:center; }
+    .jobs-dom-input  { width:60px; font-family:var(--mono) !important; text-align:center; }
+    .jobs-tokens-input { width:80px; font-family:var(--mono) !important; }
+
+    .jobs-cron-preview { font-family:var(--mono); font-size:10px; color:var(--ink3); margin-top:3px; }
+
+    .jobs-form-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
+    .jobs-btn-primary {
+        font-family:var(--mono); font-size:11px; font-weight:600; padding:8px 18px; border-radius:var(--r-sm);
+        cursor:pointer; text-transform:uppercase; letter-spacing:.04em; transition:all .15s;
+        background:var(--ink); color:var(--surface); border:1.5px solid var(--ink);
+    }
+    .jobs-btn-primary:hover { background:var(--accent); border-color:var(--accent); }
+    .jobs-btn-ghost {
+        font-family:var(--mono); font-size:11px; padding:8px 14px; border-radius:var(--r-sm); cursor:pointer;
+        background:transparent; color:var(--ink3); border:1.5px solid var(--border);
+        text-transform:uppercase; letter-spacing:.04em; transition:all .12s;
+    }
+    .jobs-btn-ghost:hover { border-color:var(--ink3); color:var(--ink); }
+    </style>
 </head>
 <body>
 <div class="app">
@@ -39,6 +159,12 @@
             <div class="nav-item" data-view="digests" id="nav-digests">
                 <span class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5h12M2 8h8M2 12.5h10"/></svg></span>
                 Digests <span class="nav-badge-gray" id="badge-digests"></span>
+            </div>
+        </div>
+        <div class="nav-section">
+            <div class="nav-item" data-view="jobs">
+                <span class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5l2 1.5"/></svg></span>
+                Jobs
             </div>
         </div>
         <div class="nav-section">
@@ -133,6 +259,33 @@
             <div id="digests-list">
                 <div class="placeholder-row"><span class="spinner"></span></div>
             </div>
+        </div>
+
+        <!-- Jobs view -->
+        <div class="view" id="view-jobs">
+            <div class="section-head">
+                <div class="section-title">Background Jobs</div>
+                <button class="section-action" onclick="window.jobs.openCreate()">+ New job</button>
+            </div>
+
+            <div id="jobs-budget-bar"></div>
+
+            <div class="jobs-layout">
+                <div class="jobs-panel-left">
+                    <div id="jobs-list">
+                        <div class="placeholder-row"><span class="spinner"></span></div>
+                    </div>
+                </div>
+                <div class="jobs-panel-right">
+                    <div id="jobs-runs-panel">
+                        <div class="jobs-runs-empty">Click a job to view its run history.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Drawer overlay -->
+            <div class="jobs-overlay" id="jobs-overlay" onclick="window.jobs.closeDrawer()"></div>
+            <div class="jobs-drawer" id="jobs-drawer"></div>
         </div>
 
         <!-- Settings view -->

@@ -8,6 +8,9 @@ const schema = z.object({
   TURSO_DATABASE_URL: z.string().default('file:./data/assistant.db'),
   TURSO_AUTH_TOKEN:   z.string().optional(),
   SESSION_SECRET:     z.string().default('dev-secret-change-in-production'),
+  ANTHROPIC_API_KEY:     z.string().optional(),
+  // Monthly token budget cap in USD (default $20)
+  MONTHLY_BUDGET_USD:    z.coerce.number().default(20),
   GOOGLE_CLIENT_ID:      z.string().optional(),
   GOOGLE_CLIENT_SECRET:  z.string().optional(),
   GOOGLE_REDIRECT_URI:   z.string().url().optional(),

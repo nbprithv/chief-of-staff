@@ -12,12 +12,13 @@ import { loadTokens } from './integrations/google/token-store.js';
 import './db/client.js';
 
 // Domain routers
-import { tasksRouter }        from './domains/tasks/tasks.router.js';
-import { emailRouter }        from './domains/email/email.router.js';
-import { mealsRouter }        from './domains/meals/meals.router.js';
-import { googleAuthRouter }   from './integrations/google/google-auth.router.js';
-import { gmailSyncRouter }    from './integrations/google/gmail-sync.router.js';
-import { calendarSyncRouter } from './integrations/google/calendar-sync.router.js';
+import { tasksRouter }           from './domains/tasks/tasks.router.js';
+import { emailRouter }           from './domains/email/email.router.js';
+import { mealsRouter }           from './domains/meals/meals.router.js';
+import { backgroundJobsRouter }  from './domains/background-jobs/background-jobs.router.js';
+import { googleAuthRouter }      from './integrations/google/google-auth.router.js';
+import { gmailSyncRouter }       from './integrations/google/gmail-sync.router.js';
+import { calendarSyncRouter }    from './integrations/google/calendar-sync.router.js';
 
 export async function buildApp(options: { publicDir?: string } = {}) {
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -62,6 +63,7 @@ export async function buildApp(options: { publicDir?: string } = {}) {
         await v1.register(tasksRouter);
         await v1.register(emailRouter);
         await v1.register(mealsRouter);
+        await v1.register(backgroundJobsRouter);
     }, { prefix: '/api/v1' });
 
     app.setErrorHandler(errorHandler);
