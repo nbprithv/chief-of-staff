@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "npm run db:migrate",
+  "buildCommand": "echo 'migrations run at startup'",
   "ignoreCommand": "exit 0",
   "builds": [
     {
