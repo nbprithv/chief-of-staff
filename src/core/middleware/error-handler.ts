@@ -1,5 +1,5 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
-import { AppError, NotFoundError } from '../errors.js';
+import { AppError } from '../errors.js';
 import { logger } from '../logger.js';
 
 export function errorHandler(
@@ -8,13 +8,13 @@ export function errorHandler(
   reply: FastifyReply,
 ) {
   if (error instanceof AppError) {
-    const logFn = error instanceof NotFoundError ? logger.error : logger.warn;
-    logFn('Application error', {
-      code:    error.code,
-      message: error.message,
-      details: error.details,
-      method:  request.method,
-      url:     request.url,
+    logger.error('Application error', {
+      code:       error.code,
+      message:    error.message,
+      statusCode: error.statusCode,
+      details:    error.details,
+      method:     request.method,
+      url:        request.url,
     });
     return reply.status(error.statusCode).send({
       error: {
@@ -25,9 +25,16 @@ export function errorHandler(
     });
   }
 
-  // Fastify validation errors
-  if ('statusCode' in error && error.statusCode === 400) {
-    return reply.status(400).send({
+  // Fastify schema / built-in validation errors (statusCode 4xx)
+  const statusCode = 'statusCode' in error ? (error.statusCode ?? 500) : 500;
+  if (statusCode >= 400 && statusCode < 500) {
+    logger.error('Request error', {
+      statusCode,
+      message: error.message,
+      method:  request.method,
+      url:     request.url,
+    });
+    return reply.status(statusCode).send({
       error: { code: 'VALIDATION_ERROR', message: error.message },
     });
   }
