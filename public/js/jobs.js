@@ -4,11 +4,11 @@ import { api } from './api.js';
 // Prompts + default schedules come from the API templates endpoint at init.
 
 const CARDS = [
-    { id: 'daily_brief',        name: 'Daily Brief',    letter: 'D', color: '#B07D2F' },
-    { id: 'week_ahead',         name: 'Week Ahead',     letter: 'W', color: '#4A7FB5' },
-    { id: 'inbox_triage',       name: 'Inbox Triage',   letter: 'I', color: '#7B5EA7' },
-    { id: 'overdue_nudge',      name: 'Overdue Nudge',  letter: 'O', color: '#C25B3F' },
-    { id: 'meal_prep_reminder', name: 'Meal Prep',      letter: 'M', color: '#3D8C6E' },
+    { id: 'school_email_digest', name: 'School Email Digest', letter: 'S', color: '#4A7FB5' },
+    { id: 'week_ahead',          name: 'Week Ahead',          letter: 'W', color: '#7B5EA7' },
+    { id: 'inbox_triage',        name: 'Inbox Triage',        letter: 'I', color: '#B07D2F' },
+    { id: 'overdue_nudge',       name: 'Overdue Nudge',       letter: 'O', color: '#C25B3F' },
+    { id: 'meal_prep_reminder',  name: 'Meal Prep',           letter: 'M', color: '#3D8C6E' },
 ];
 
 // ── State ──────────────────────────────────────────────────────────────────────

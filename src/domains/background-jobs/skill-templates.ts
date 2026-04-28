@@ -14,20 +14,12 @@ export interface SkillTemplate {
 
 export const SKILL_TEMPLATES: SkillTemplate[] = [
     {
-        id:          'daily_brief',
-        name:        'Daily Brief',
-        description: 'Morning summary of today\'s tasks, events, and priorities.',
-        defaultPrompt: `Today is {date}. You are a personal executive assistant writing a crisp morning brief.
-
-Here is the context:
-- Upcoming events (next 24 h): {events}
-- Tasks due today: {tasks_due_today}
-- Overdue tasks: {tasks_overdue}
-- Inbox items: {inbox_count} unprocessed
-
-Write a 3–4 sentence morning brief in a confident, clear voice. Lead with the most time-sensitive item, then summarize the day. Be specific — mention titles and times. No bullet points. Output only the brief text.`,
-        suggestedSchedule: '0 7 * * *',
-        suggestedMaxTokens: 400,
+        id:          'school_email_digest',
+        name:        'School Email Digest',
+        description: 'Scans Gmail for Galloway School emails, sends a digest to both parents, and adds any events to Google Calendar.',
+        defaultPrompt: '',   // handled entirely by the skill runner — prompt not used
+        suggestedSchedule: '0 18 * * *',   // 6 PM daily
+        suggestedMaxTokens: 1500,
     },
     {
         id:          'week_ahead',

@@ -11,6 +11,20 @@ import {
     setLastRun,
 } from './background-jobs.service.js';
 import { sendEmail } from '../../integrations/google/gmail-send.service.js';
+import { runSchoolEmailDigest } from './skills/school-email-digest.skill.js';
+
+// ── Skill dispatch map ────────────────────────────────────────────────────────
+// Add entries here to give a skill its own runner instead of the generic loop.
+
+const SKILL_RUNNERS: Record<string, (job: BackgroundJob) => Promise<{
+    status: 'success' | 'skipped' | 'error';
+    output?: string;
+    error?: string;
+    inputTokens: number;
+    outputTokens: number;
+}>> = {
+    school_email_digest: runSchoolEmailDigest,
+};
 
 const MODEL = 'claude-sonnet-4-20250514';
 
@@ -85,6 +99,23 @@ export async function runJob(job: BackgroundJob): Promise<{
     const startedAt = new Date().toISOString();
 
     try {
+        // ── Dispatch to specialized skill runner if one is registered ─────────
+        const skillRunner = job.skill_id ? SKILL_RUNNERS[job.skill_id] : null;
+        if (skillRunner) {
+            logger.info('Dispatching to skill runner', { jobId: job.id, skill_id: job.skill_id });
+            const result = await skillRunner(job);
+            await completeRun(run.id, {
+                status:       result.status,
+                output:       result.output,
+                error:        result.error,
+                inputTokens:  result.inputTokens,
+                outputTokens: result.outputTokens,
+            });
+            if (result.status !== 'error') await setLastRun(job.id, startedAt);
+            logger.info('Skill run complete', { jobId: job.id, status: result.status, tokens: result.inputTokens + result.outputTokens });
+            return { status: result.status, output: result.output, error: result.error };
+        }
+
         // ── Hydrate prompt ───────────────────────────────────────────────────
         const ctx    = await buildContext(userId);
         const prompt = hydratePrompt(job.prompt, ctx);
