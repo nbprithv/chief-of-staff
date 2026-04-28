@@ -61,11 +61,12 @@ function renderBudget() {
     if (!el) return;
     const pct   = Math.min(100, (budget.spent / budget.limit) * 100);
     const color = pct >= 90 ? 'var(--red)' : pct >= 70 ? 'var(--amber)' : 'var(--green)';
+    const remaining = Math.max(0, budget.limit - budget.spent);
     el.innerHTML = `
     <div class="jc-budget">
       <div class="jc-budget-row">
         <span class="jc-budget-label">Monthly AI budget</span>
-        <span class="jc-budget-amount">$${budget.spent.toFixed(3)} of $${budget.limit.toFixed(2)}
+        <span class="jc-budget-amount">$${budget.spent.toFixed(4)} of $${budget.limit.toFixed(2)} &middot; <span style="color:${color}">$${remaining.toFixed(4)} remaining</span>
           ${!budget.ok ? '<span class="jc-budget-exhausted">EXHAUSTED</span>' : ''}
         </span>
       </div>
