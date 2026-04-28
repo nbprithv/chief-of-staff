@@ -3,6 +3,7 @@ import { getAuthenticatedClient } from './google-oauth.client.js';
 import { logger } from '../../core/logger.js';
 
 export interface FetchedEmailSummary {
+    message_id:  string;
     subject:     string;
     sender:      string;
     received_at: string;
@@ -40,6 +41,7 @@ export async function fetchEmailsByQuery(
                 headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value ?? '';
 
             results.push({
+                message_id:  id,
                 subject:     getH('Subject') || '(no subject)',
                 sender:      getH('From'),
                 received_at: getH('Date') || new Date().toISOString(),
@@ -52,6 +54,33 @@ export async function fetchEmailsByQuery(
 
     logger.info('[gmail-fetch] fetched', { count: results.length });
     return results;
+}
+
+/**
+ * Runs two Gmail searches for Galloway School emails and deduplicates by message ID.
+ * Search A: sender/subject signals; Search B: body mentions.
+ */
+export async function fetchGallowayEmails(userId: string): Promise<FetchedEmailSummary[]> {
+    const QUERY_A = 'from:gallowayschool.org OR from:galloway OR subject:galloway newer_than:1d';
+    const QUERY_B = '"galloway school" newer_than:1d';
+
+    const [setA, setB] = await Promise.all([
+        fetchEmailsByQuery(userId, QUERY_A, 20),
+        fetchEmailsByQuery(userId, QUERY_B, 20),
+    ]);
+
+    const seen  = new Set<string>();
+    const merged: FetchedEmailSummary[] = [];
+
+    for (const email of [...setA, ...setB]) {
+        if (!seen.has(email.message_id)) {
+            seen.add(email.message_id);
+            merged.push(email);
+        }
+    }
+
+    logger.info('[gmail-fetch] galloway deduped', { queryA: setA.length, queryB: setB.length, merged: merged.length });
+    return merged;
 }
 
 function extractText(payload: any): string {

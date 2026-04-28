@@ -108,6 +108,103 @@
         background:transparent; color:var(--ink3); border:1.5px solid var(--border);
     }
     .jc-freq-cancel:hover { border-color:var(--ink3); color:var(--ink); }
+
+    /* ── Job detail modal ──────────────────────────────────────────── */
+
+    .jm-overlay {
+        display:none; position:fixed; inset:0; z-index:200;
+        background:rgba(0,0,0,.45); backdrop-filter:blur(2px);
+        align-items:center; justify-content:center;
+        padding:20px;
+    }
+    .jm-overlay.open { display:flex; }
+
+    .jm-panel {
+        background:var(--surface); border:1px solid var(--border);
+        border-radius:var(--r-lg); box-shadow:var(--shadow-md);
+        width:100%; max-width:540px; max-height:85vh;
+        display:flex; flex-direction:column; overflow:hidden;
+        animation:fadeIn .18s ease;
+    }
+
+    .jm-header {
+        display:flex; align-items:flex-start; gap:12px;
+        padding:20px 20px 16px; border-bottom:1px solid var(--border);
+        flex-shrink:0;
+    }
+    .jm-icon {
+        width:40px; height:40px; border-radius:10px; flex-shrink:0;
+        display:flex; align-items:center; justify-content:center;
+        font-family:var(--mono); font-size:16px; font-weight:700;
+    }
+    .jm-header-info { flex:1; min-width:0; }
+    .jm-title { font-size:16px; font-weight:600; color:var(--ink); letter-spacing:-.2px; }
+    .jm-subtitle { font-size:12px; color:var(--ink3); margin-top:3px; line-height:1.45; }
+    .jm-close {
+        background:none; border:none; cursor:pointer; color:var(--ink3);
+        font-size:20px; line-height:1; padding:2px 4px; border-radius:var(--r-sm);
+        transition:color .1s, background .1s; margin-top:-2px; flex-shrink:0;
+    }
+    .jm-close:hover { color:var(--ink); background:var(--surface-1); }
+
+    .jm-meta {
+        display:flex; gap:16px; padding:12px 20px;
+        border-bottom:1px solid var(--border); flex-shrink:0;
+        flex-wrap:wrap;
+    }
+    .jm-meta-item { display:flex; flex-direction:column; gap:2px; }
+    .jm-meta-label {
+        font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+        color:var(--ink4);
+    }
+    .jm-meta-value { font-family:var(--mono); font-size:11px; color:var(--ink2); }
+
+    .jm-body { overflow-y:auto; flex:1; padding:16px 20px 20px; }
+    .jm-body::-webkit-scrollbar { width:3px; }
+    .jm-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+    .jm-runs-title {
+        font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+        color:var(--ink4); margin-bottom:10px;
+    }
+
+    .jm-run {
+        border:1px solid var(--border); border-radius:var(--r-md);
+        padding:12px 14px; margin-bottom:8px; background:var(--surface-1);
+    }
+    .jm-run-header {
+        display:flex; align-items:center; gap:8px; margin-bottom:4px;
+    }
+    .jm-run-status {
+        font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+        padding:2px 7px; border-radius:99px; border:1.5px solid; flex-shrink:0;
+    }
+    .jm-run-status--success { color:var(--green); border-color:var(--green); background:var(--green-bg); }
+    .jm-run-status--error   { color:var(--red);   border-color:var(--red);   background:var(--red-bg); }
+    .jm-run-status--skipped { color:var(--ink4);  border-color:var(--border); background:transparent; }
+    .jm-run-time { font-family:var(--mono); font-size:10px; color:var(--ink4); margin-left:auto; }
+    .jm-run-tokens { font-family:var(--mono); font-size:10px; color:var(--ink3); }
+    .jm-run-output {
+        font-size:12px; color:var(--ink2); line-height:1.55; margin-top:6px;
+        white-space:pre-wrap; max-height:120px; overflow-y:auto;
+        border-top:1px solid var(--border); padding-top:6px;
+    }
+    .jm-run-error {
+        font-size:11px; color:var(--red); font-family:var(--mono);
+        margin-top:6px; border-top:1px solid var(--border); padding-top:6px;
+        word-break:break-all;
+    }
+    .jm-empty { color:var(--ink4); font-size:13px; padding:20px 0; text-align:center; }
+    .jm-loading { display:flex; align-items:center; justify-content:center; padding:32px; }
+
+    @media (max-width:640px) {
+        .jm-overlay { padding:0; align-items:flex-end; }
+        .jm-panel {
+            max-width:100%; border-radius:var(--r-lg) var(--r-lg) 0 0;
+            max-height:80dvh; max-height:80vh;
+            padding-bottom:env(safe-area-inset-bottom);
+        }
+    }
     </style>
 </head>
 <body>
@@ -286,6 +383,24 @@
         </div>
 
     </main>
+
+    <!-- ── Job detail modal ──────────────────────────────────────────────── -->
+    <div class="jm-overlay" id="jm-overlay" onclick="window.jobs.closeModal(event)">
+        <div class="jm-panel" id="jm-panel">
+            <div class="jm-header" id="jm-header">
+                <div class="jm-icon" id="jm-icon"></div>
+                <div class="jm-header-info">
+                    <div class="jm-title" id="jm-title"></div>
+                    <div class="jm-subtitle" id="jm-subtitle"></div>
+                </div>
+                <button class="jm-close" onclick="window.jobs.closeModal()">✕</button>
+            </div>
+            <div class="jm-meta" id="jm-meta"></div>
+            <div class="jm-body" id="jm-body">
+                <div class="jm-loading"><span class="spinner"></span></div>
+            </div>
+        </div>
+    </div>
 
     <!-- ── Mobile bottom nav ─────────────────────────────────────────────── -->
     <nav class="bottom-nav" aria-label="Main navigation">

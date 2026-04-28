@@ -13,6 +13,7 @@ export interface CreateEventInput {
     attendees?:   string[];      // email addresses; invites sent via sendUpdates:'all'
     timezone?:    string;        // defaults to America/New_York
     calendarId?:  string;        // defaults to 'primary'
+    reminders?:   { minutesBefore: number }[];  // popup reminders; omit to use calendar defaults
 }
 
 export interface CreatedEvent {
@@ -54,6 +55,10 @@ export async function createCalendarEvent(
         const client   = await getAuthenticatedClient(userId);
         const calendar = google.calendar({ version: 'v3', auth: client });
 
+        const remindersBody = input.reminders && input.reminders.length > 0
+            ? { useDefault: false, overrides: input.reminders.map(r => ({ method: 'popup', minutes: r.minutesBefore })) }
+            : { useDefault: true };
+
         const res = await calendar.events.insert({
             calendarId,
             sendUpdates: attendees.length > 0 ? 'all' : 'none',
@@ -64,6 +69,7 @@ export async function createCalendarEvent(
                 start:       startObj,
                 end:         endObj,
                 attendees,
+                reminders:   remindersBody,
             },
         });
 

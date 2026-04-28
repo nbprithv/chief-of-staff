@@ -101,7 +101,7 @@ function renderCard(card) {
 
     return `
     <div class="jc-card${!enabled && exists ? ' jc-card--paused' : ''}" id="jcard-${card.id}">
-      <div class="jc-card-header">
+      <div class="jc-card-header" style="cursor:pointer" onclick="window.jobs.viewDetails('${card.id}')">
         <div class="jc-icon" style="background:${card.color}1a;color:${card.color}">${card.letter}</div>
         <div class="jc-card-info">
           <div class="jc-name">${card.name}</div>
@@ -283,6 +283,88 @@ window.jobs = {
             return;
         }
         await refresh();
+    },
+
+    closeModal(event) {
+        // If triggered by overlay click, only close when clicking the backdrop itself
+        if (event && event.target !== document.getElementById('jm-overlay')) return;
+        document.getElementById('jm-overlay').classList.remove('open');
+    },
+
+    async viewDetails(skillId) {
+        const card = CARDS.find(c => c.id === skillId);
+        if (!card) return;
+
+        const job     = jobs.find(j => j.skill_id === skillId) ?? null;
+        const tpl     = templates.find(t => t.id === skillId);
+        const sched   = job?.schedule ?? tpl?.suggestedSchedule ?? '0 8 * * *';
+        const enabled = job ? job.enabled : true;
+        const exists  = !!job;
+        const statusLabel = !exists ? 'inactive' : enabled ? 'active' : 'paused';
+        const statusMod   = !exists ? 'jc-status--inactive' : enabled ? 'jc-status--active' : 'jc-status--paused';
+
+        // Populate header
+        document.getElementById('jm-icon').style.cssText = `background:${card.color}1a;color:${card.color}`;
+        document.getElementById('jm-icon').textContent = card.letter;
+        document.getElementById('jm-title').textContent = card.name;
+        document.getElementById('jm-subtitle').textContent = tpl?.description ?? '';
+
+        // Populate meta strip
+        document.getElementById('jm-meta').innerHTML = `
+            <div class="jm-meta-item">
+                <span class="jm-meta-label">Status</span>
+                <span class="jc-status ${statusMod}" style="align-self:flex-start">${statusLabel}</span>
+            </div>
+            <div class="jm-meta-item">
+                <span class="jm-meta-label">Schedule</span>
+                <span class="jm-meta-value">${describeCron(sched)}</span>
+            </div>
+            <div class="jm-meta-item">
+                <span class="jm-meta-label">Last run</span>
+                <span class="jm-meta-value">${job?.last_run_at ? relativeTime(job.last_run_at) : '—'}</span>
+            </div>`;
+
+        // Show loading state and open overlay
+        document.getElementById('jm-body').innerHTML = '<div class="jm-loading"><span class="spinner"></span></div>';
+        document.getElementById('jm-overlay').classList.add('open');
+
+        // Fetch run history (only if job exists in DB)
+        if (!job) {
+            document.getElementById('jm-body').innerHTML = '<div class="jm-empty">No runs yet — this job hasn\'t been configured.</div>';
+            return;
+        }
+
+        try {
+            const { runs } = await api.jobRuns(job.id, { limit: 10 });
+            if (!runs || runs.length === 0) {
+                document.getElementById('jm-body').innerHTML = '<div class="jm-empty">No runs yet.</div>';
+                return;
+            }
+            const html = `<div class="jm-runs-title">Recent Runs</div>` + runs.map(r => {
+                const statusCls = r.status === 'success' ? 'jm-run-status--success'
+                                : r.status === 'error'   ? 'jm-run-status--error'
+                                : 'jm-run-status--skipped';
+                const tokens = (r.input_tokens || r.output_tokens)
+                    ? `<span class="jm-run-tokens">${(r.input_tokens ?? 0) + (r.output_tokens ?? 0)} tok</span>`
+                    : '';
+                const output = r.output
+                    ? `<div class="jm-run-output">${esc(r.output)}</div>` : '';
+                const error = r.error
+                    ? `<div class="jm-run-error">${esc(r.error)}</div>` : '';
+                return `
+                <div class="jm-run">
+                    <div class="jm-run-header">
+                        <span class="jm-run-status ${statusCls}">${r.status}</span>
+                        ${tokens}
+                        <span class="jm-run-time">${relativeTime(r.started_at ?? r.created_at)}</span>
+                    </div>
+                    ${output}${error}
+                </div>`;
+            }).join('');
+            document.getElementById('jm-body').innerHTML = html;
+        } catch (err) {
+            document.getElementById('jm-body').innerHTML = `<div class="jm-empty">Failed to load runs: ${esc(err.message)}</div>`;
+        }
     },
 
     async togglePause(skillId) {
