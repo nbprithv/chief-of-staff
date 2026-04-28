@@ -11,124 +11,103 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="/css/app.css">
     <style>
-    /* ── Background Jobs view ─────────────────────────────────────────── */
+    /* ── Background Jobs — card layout ──────────────────────────────── */
 
-    .jobs-budget { margin-bottom: 20px; }
-    .jobs-budget-label { display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; font-size:12px; color:var(--ink2); }
-    .jobs-budget-track { height:5px; background:var(--surface-2); border-radius:99px; overflow:hidden; }
-    .jobs-budget-fill  { height:100%; border-radius:99px; transition:width .4s ease; }
+    .jc-budget { margin-bottom:20px; }
+    .jc-budget-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+    .jc-budget-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--ink3); }
+    .jc-budget-amount { font-family:var(--mono); font-size:11px; color:var(--ink3); }
+    .jc-budget-exhausted { color:var(--red); font-weight:700; margin-left:8px; }
+    .jc-budget-track { height:4px; background:var(--surface-2); border-radius:99px; overflow:hidden; }
+    .jc-budget-fill  { height:100%; border-radius:99px; transition:width .4s ease; }
 
-    .jobs-layout { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px; }
-    @media (max-width:900px) { .jobs-layout { grid-template-columns:1fr; } }
-
-    .jobs-panel-left,
-    .jobs-panel-right { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md); overflow:hidden; }
-
-    .jobs-empty { padding:32px 20px; text-align:center; font-size:13px; color:var(--ink3); }
-
-    .jobs-row { border-bottom:1px solid var(--border); }
-    .jobs-row:last-child { border-bottom:none; }
-    .jobs-row--active { background:var(--accent-bg); }
-
-    .jobs-row-main { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; cursor:pointer; }
-    .jobs-row-main:hover { background:var(--surface-1); }
-    .jobs-row-left  { display:flex; align-items:center; gap:10px; flex:1; min-width:0; }
-
-    .jobs-dot { display:inline-block; width:7px; height:7px; border-radius:50%; flex-shrink:0; }
-    .jobs-dot--on  { background:var(--green); box-shadow:0 0 0 2px var(--green-bg); }
-    .jobs-dot--off { background:var(--ink4); }
-
-    .jobs-row-name { font-size:13px; font-weight:500; color:var(--ink); }
-    .jobs-row-meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:2px; font-family:var(--mono); font-size:10px; color:var(--ink3); }
-    .jobs-tag { background:var(--surface-2); border:1px solid var(--border); border-radius:3px; padding:1px 6px; font-size:9px; }
-
-    .jobs-row-actions { display:flex; gap:4px; flex-shrink:0; }
-
-    .jobs-btn-sm {
-        font-family:var(--mono); font-size:11px; padding:3px 8px; border-radius:3px; cursor:pointer;
-        border:1.5px solid var(--border); background:var(--surface); color:var(--ink2);
-        transition:all .12s; line-height:1.5;
+    .jc-grid {
+        display:grid;
+        grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));
+        gap:12px;
     }
-    .jobs-btn-sm:hover { border-color:var(--ink3); color:var(--ink); }
-    .jobs-btn-sm--danger:hover { border-color:var(--red); color:var(--red); }
 
-    /* Runs panel */
-    .jobs-runs-header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border); }
-    .jobs-runs-title  { font-size:13px; font-weight:500; color:var(--ink); }
-    .jobs-runs-empty,
-    .jobs-runs-loading,
-    .jobs-runs-error  { padding:32px 20px; text-align:center; font-size:12px; color:var(--ink3); display:flex; align-items:center; justify-content:center; gap:8px; }
-    .jobs-runs-error  { color:var(--red); }
-
-    .jobs-run-row { padding:10px 16px; border-bottom:1px solid var(--border); }
-    .jobs-run-row:last-child { border-bottom:none; }
-    .jobs-run-row.run-ok   { border-left:3px solid var(--green); }
-    .jobs-run-row.run-err  { border-left:3px solid var(--red); }
-    .jobs-run-row.run-skip { border-left:3px solid var(--ink4); }
-    .jobs-run-row.run-run  { border-left:3px solid var(--amber); }
-
-    .jobs-run-meta   { display:flex; gap:10px; align-items:center; margin-bottom:5px; font-family:var(--mono); font-size:10px; color:var(--ink3); }
-    .jobs-run-status { font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
-    .run-ok   .jobs-run-status { color:var(--green); }
-    .run-err  .jobs-run-status { color:var(--red); }
-    .run-skip .jobs-run-status { color:var(--ink4); }
-    .jobs-run-output { font-size:12px; color:var(--ink2); line-height:1.6; white-space:pre-wrap; }
-    .jobs-run-error  { font-size:11px; color:var(--red); font-family:var(--mono); }
-
-    /* Drawer */
-    .jobs-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:99; }
-    .jobs-overlay.active { display:block; }
-
-    .jobs-drawer {
-        display:none; position:fixed; top:0; right:0; bottom:0; width:min(520px,100vw);
-        background:var(--surface); border-left:1px solid var(--border);
-        box-shadow:var(--shadow-md); z-index:100; overflow-y:auto;
-        transform:translateX(100%); transition:transform .2s ease;
+    .jc-card {
+        background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md);
+        padding:16px; display:flex; flex-direction:column; gap:12px;
+        transition:border-color .15s;
     }
-    .jobs-drawer.active { display:block; transform:translateX(0); }
+    .jc-card:hover { border-color:var(--ink4); }
+    .jc-card--paused { opacity:.6; }
 
-    .jobs-drawer-header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border); }
-    .jobs-drawer-title  { font-size:15px; font-weight:600; color:var(--ink); }
-    .jobs-drawer-close  { background:none; border:none; cursor:pointer; font-size:16px; color:var(--ink3); padding:4px; }
+    .jc-card-header { display:flex; align-items:flex-start; gap:11px; }
+    .jc-icon {
+        width:36px; height:36px; border-radius:10px; flex-shrink:0;
+        display:flex; align-items:center; justify-content:center;
+        font-family:var(--mono); font-size:14px; font-weight:700;
+    }
+    .jc-card-info { flex:1; min-width:0; }
+    .jc-name { font-size:13px; font-weight:600; color:var(--ink); }
+    .jc-desc { font-size:11px; color:var(--ink3); margin-top:2px; line-height:1.45; }
 
-    .jobs-form { padding:20px; display:flex; flex-direction:column; gap:16px; }
-    .jobs-field { display:flex; flex-direction:column; gap:5px; }
-    .jobs-field label { font-size:11px; font-weight:600; color:var(--ink2); text-transform:uppercase; letter-spacing:.04em; }
-    .jobs-field-hint  { font-size:10px; font-weight:400; text-transform:none; letter-spacing:0; color:var(--ink3); }
-    .jobs-field--row  { flex-direction:row; align-items:center; gap:10px; }
-    .jobs-field--row label { min-width:120px; }
+    .jc-status {
+        flex-shrink:0; margin-top:2px;
+        font-family:var(--mono); font-size:9px; font-weight:700;
+        text-transform:uppercase; letter-spacing:.06em;
+        padding:2px 7px; border-radius:99px; border:1.5px solid;
+    }
+    .jc-status--active   { color:var(--green); border-color:var(--green); background:var(--green-bg,#1a2e1a); }
+    .jc-status--paused   { color:var(--ink4);  border-color:var(--border); background:transparent; }
+    .jc-status--inactive { color:var(--ink4);  border-color:var(--border); background:transparent; }
 
-    .jobs-form input[type="text"],
-    .jobs-form select,
-    .jobs-form textarea {
-        font-family:var(--sans); font-size:13px; padding:8px 10px;
+    .jc-meta { display:flex; flex-direction:column; gap:2px; }
+    .jc-sched-text,
+    .jc-lastrun-text { font-family:var(--mono); font-size:10px; color:var(--ink3); }
+
+    .jc-actions { display:flex; gap:6px; flex-wrap:wrap; }
+
+    .jc-btn {
+        font-family:var(--mono); font-size:10px; font-weight:600;
+        text-transform:uppercase; letter-spacing:.03em;
+        padding:5px 11px; border-radius:var(--r-sm); border:1.5px solid;
+        cursor:pointer; transition:all .12s; white-space:nowrap;
+        display:inline-flex; align-items:center; gap:4px;
+    }
+    .jc-btn--run { background:var(--ink); color:var(--surface); border-color:var(--ink); }
+    .jc-btn--run:hover:not(:disabled) { opacity:.75; }
+    .jc-btn--run:disabled { opacity:.45; cursor:default; }
+    .jc-btn--outline { background:transparent; color:var(--ink2); border-color:var(--border); }
+    .jc-btn--outline:hover { border-color:var(--ink3); color:var(--ink); }
+    .jc-btn--outline-active { border-color:var(--accent); color:var(--accent); }
+
+    /* Inline schedule editor */
+    .jc-freq-panel {
+        border-top:1px solid var(--border); padding-top:12px;
+        display:flex; flex-direction:column; gap:10px;
+    }
+    .jc-freq-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+    .jc-freq-select {
+        font-family:var(--sans); font-size:12px; padding:5px 8px;
         border:1.5px solid var(--border); border-radius:var(--r-sm);
-        background:var(--surface); color:var(--ink); outline:none; resize:vertical;
+        background:var(--surface); color:var(--ink); outline:none; cursor:pointer;
     }
-    .jobs-form input:focus,
-    .jobs-form select:focus,
-    .jobs-form textarea:focus { border-color:var(--accent); }
-
-    .jobs-freq-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
-    .jobs-time-input { width:54px; font-family:var(--mono) !important; text-align:center; }
-    .jobs-dom-input  { width:60px; font-family:var(--mono) !important; text-align:center; }
-    .jobs-tokens-input { width:80px; font-family:var(--mono) !important; }
-
-    .jobs-cron-preview { font-family:var(--mono); font-size:10px; color:var(--ink3); margin-top:3px; }
-
-    .jobs-form-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
-    .jobs-btn-primary {
-        font-family:var(--mono); font-size:11px; font-weight:600; padding:8px 18px; border-radius:var(--r-sm);
-        cursor:pointer; text-transform:uppercase; letter-spacing:.04em; transition:all .15s;
+    .jc-freq-select:focus { border-color:var(--accent); }
+    .jc-freq-num {
+        font-family:var(--mono); font-size:12px; padding:5px 6px; width:52px; text-align:center;
+        border:1.5px solid var(--border); border-radius:var(--r-sm);
+        background:var(--surface); color:var(--ink); outline:none;
+    }
+    .jc-freq-time { width:40px; }
+    .jc-freq-num:focus { border-color:var(--accent); }
+    .jc-freq-at { font-family:var(--mono); font-size:11px; color:var(--ink3); }
+    .jc-freq-footer { display:flex; justify-content:flex-end; gap:6px; }
+    .jc-freq-save {
+        font-family:var(--mono); font-size:10px; font-weight:600; text-transform:uppercase;
+        letter-spacing:.04em; padding:5px 14px; border-radius:var(--r-sm); cursor:pointer;
         background:var(--ink); color:var(--surface); border:1.5px solid var(--ink);
     }
-    .jobs-btn-primary:hover { background:var(--accent); border-color:var(--accent); }
-    .jobs-btn-ghost {
-        font-family:var(--mono); font-size:11px; padding:8px 14px; border-radius:var(--r-sm); cursor:pointer;
+    .jc-freq-save:hover { opacity:.8; }
+    .jc-freq-cancel {
+        font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.04em;
+        padding:5px 10px; border-radius:var(--r-sm); cursor:pointer;
         background:transparent; color:var(--ink3); border:1.5px solid var(--border);
-        text-transform:uppercase; letter-spacing:.04em; transition:all .12s;
     }
-    .jobs-btn-ghost:hover { border-color:var(--ink3); color:var(--ink); }
+    .jc-freq-cancel:hover { border-color:var(--ink3); color:var(--ink); }
     </style>
 </head>
 <body>
@@ -265,27 +244,13 @@
         <div class="view" id="view-jobs">
             <div class="section-head">
                 <div class="section-title">Background Jobs</div>
-                <button class="section-action" onclick="window.jobs.openCreate()">+ New job</button>
             </div>
 
             <div id="jobs-budget-bar"></div>
 
-            <div class="jobs-layout">
-                <div class="jobs-panel-left">
-                    <div id="jobs-list">
-                        <div class="placeholder-row"><span class="spinner"></span></div>
-                    </div>
-                </div>
-                <div class="jobs-panel-right">
-                    <div id="jobs-runs-panel">
-                        <div class="jobs-runs-empty">Click a job to view its run history.</div>
-                    </div>
-                </div>
+            <div class="jc-grid" id="jobs-cards">
+                <div class="placeholder-row"><span class="spinner"></span></div>
             </div>
-
-            <!-- Drawer overlay -->
-            <div class="jobs-overlay" id="jobs-overlay" onclick="window.jobs.closeDrawer()"></div>
-            <div class="jobs-drawer" id="jobs-drawer"></div>
         </div>
 
         <!-- Settings view -->
