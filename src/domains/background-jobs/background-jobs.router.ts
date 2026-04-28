@@ -79,7 +79,7 @@ export async function backgroundJobsRouter(app: FastifyInstance): Promise<void> 
             logger.error('[jobs/create] validation failed: name', { name: body.name, type: typeof body.name });
             throw new ValidationError('name is required');
         }
-        if (!body.prompt || typeof body.prompt !== 'string') {
+        if (body.prompt === undefined || body.prompt === null || typeof body.prompt !== 'string') {
             logger.error('[jobs/create] validation failed: prompt', { prompt: typeof body.prompt });
             throw new ValidationError('prompt is required');
         }
