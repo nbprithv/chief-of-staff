@@ -57,7 +57,14 @@ export async function runJob(job: BackgroundJob): Promise<{
         const ctx    = await buildContext(userId);
         const prompt = hydratePrompt(job.prompt, ctx);
 
-        logger.info('Running background job', { jobId: job.id, name: job.name });
+        logger.info('Running background job', {
+            jobId: job.id,
+            name: job.name,
+            model: MODEL,
+            maxTokens: job.max_tokens_per_run,
+            promptLength: prompt.length,
+            apiKeyPresent: !!config.ANTHROPIC_API_KEY,
+        });
 
         // ── Call Claude ──────────────────────────────────────────────────────
         const client   = getClient();
@@ -88,8 +95,20 @@ export async function runJob(job: BackgroundJob): Promise<{
         return { status: 'success', output: text };
 
     } catch (err: any) {
-        const message = err?.message ?? String(err);
-        logger.error('Job failed', { jobId: job.id, error: message });
+        // Capture full Anthropic API error details if available
+        const message    = err?.message ?? String(err);
+        const statusCode = err?.status ?? err?.statusCode ?? null;
+        const errType    = err?.error?.type ?? err?.type ?? null;
+        const errBody    = err?.error ?? null;
+
+        logger.error('Job failed', {
+            jobId:      job.id,
+            error:      message,
+            statusCode,
+            errType,
+            errBody,
+            stack:      err?.stack?.split('\n').slice(0, 5),
+        });
 
         await completeRun(run.id, { status: 'error', error: message });
         return { status: 'error', error: message };

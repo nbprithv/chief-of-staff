@@ -130,10 +130,23 @@ export async function backgroundJobsRouter(app: FastifyInstance): Promise<void> 
     app.post('/jobs/:id/run', async (req, reply) => {
         const userId = getUserId(req)!;
         const { id } = req.params as { id: string };
+
+        app.log.info({ jobId: id, userId }, '[jobs/run] manual trigger received');
+
         const job = await getJob(id, userId);
         if (!job) throw new NotFoundError('Job', id);
 
+        app.log.info({
+            jobId:      job.id,
+            name:       job.name,
+            schedule:   job.schedule,
+            enabled:    job.enabled,
+            maxTokens:  job.max_tokens_per_run,
+        }, '[jobs/run] job loaded, starting run');
+
         const result = await runJob(job);
+
+        app.log.info({ jobId: id, status: result.status }, '[jobs/run] run finished');
         return reply.send(result);
     });
 }
