@@ -1,5 +1,5 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
-import { AppError } from '../errors.js';
+import { AppError, NotFoundError } from '../errors.js';
 import { logger } from '../logger.js';
 
 export function errorHandler(
@@ -8,7 +8,14 @@ export function errorHandler(
   reply: FastifyReply,
 ) {
   if (error instanceof AppError) {
-    logger.warn('Application error', { code: error.code, message: error.message, details: error.details });
+    const logFn = error instanceof NotFoundError ? logger.error : logger.warn;
+    logFn('Application error', {
+      code:    error.code,
+      message: error.message,
+      details: error.details,
+      method:  request.method,
+      url:     request.url,
+    });
     return reply.status(error.statusCode).send({
       error: {
         code:    error.code,
