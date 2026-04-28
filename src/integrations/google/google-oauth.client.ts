@@ -6,9 +6,10 @@ import { ExternalServiceError } from '../../core/errors.js';
 import { loadTokens, saveTokens, clearTokens, isExpired } from './token-store.js';
 import type { TokenSet } from './token-store.js';
 
-// Gmail + Calendar readonly + user info
+// Gmail (read + send) + Calendar readonly + user info
 export const GMAIL_SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/gmail.send',
     'https://www.googleapis.com/auth/calendar.readonly',
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/userinfo.profile',

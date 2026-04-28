@@ -134,6 +134,7 @@ export async function completeRun(
 
 export type JobContext = {
     date:             string;
+    user_email:       string;
     events:           string;
     tasks_due_today:  string;
     tasks_due_week:   string;
@@ -143,10 +144,20 @@ export type JobContext = {
     meals_week:       string;
 };
 
-export async function buildContext(_userId: string): Promise<JobContext> {
+export async function buildContext(userId: string): Promise<JobContext> {
     const today = new Date().toLocaleDateString('en-US', {
         weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
     });
+
+    // Resolve the user's email address for use in prompts as {user_email}
+    let userEmail = '';
+    try {
+        const { getConnectedUser } = await import('../../integrations/google/google-oauth.client.js');
+        const info = await getConnectedUser(userId);
+        userEmail  = info.email ?? '';
+    } catch {
+        // Google not connected — leave blank
+    }
 
     // Pull live data from the nodes table for context injection
     const { db: drizzleDb } = await import('../../db/client.js');
@@ -200,6 +211,7 @@ export async function buildContext(_userId: string): Promise<JobContext> {
 
     return {
         date:            today,
+        user_email:      userEmail,
         events,
         tasks_due_today: dueToday,
         tasks_due_week:  dueWeek,
@@ -213,6 +225,7 @@ export async function buildContext(_userId: string): Promise<JobContext> {
 export function hydratePrompt(template: string, ctx: JobContext): string {
     return template
         .replace(/{date}/g,            ctx.date)
+        .replace(/{user_email}/g,      ctx.user_email)
         .replace(/{events}/g,          ctx.events)
         .replace(/{tasks_due_today}/g, ctx.tasks_due_today)
         .replace(/{tasks_due_week}/g,  ctx.tasks_due_week)

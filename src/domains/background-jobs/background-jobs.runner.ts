@@ -10,6 +10,7 @@ import {
     completeRun,
     setLastRun,
 } from './background-jobs.service.js';
+import { sendEmail } from '../../integrations/google/gmail-send.service.js';
 
 const MODEL = 'claude-sonnet-4-20250514';
 
@@ -19,6 +20,37 @@ function getClient(): Anthropic {
     }
     return new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 }
+
+// ── Tools available to every job ──────────────────────────────────────────────
+
+const JOB_TOOLS: Anthropic.Tool[] = [
+    {
+        name:        'send_email',
+        description: 'Send an email from the signed-in Google account. Use this when the job output should be delivered to the user via email.',
+        input_schema: {
+            type: 'object',
+            properties: {
+                to: {
+                    type:        'string',
+                    description: 'Recipient email address. Use {user_email} from context to send to the user themselves.',
+                },
+                subject: {
+                    type:        'string',
+                    description: 'Email subject line.',
+                },
+                body: {
+                    type:        'string',
+                    description: 'Plain-text email body.',
+                },
+                cc: {
+                    type:        'string',
+                    description: 'Optional CC address(es), comma-separated.',
+                },
+            },
+            required: ['to', 'subject', 'body'],
+        },
+    },
+];
 
 /**
  * Executes a single background job:
@@ -66,17 +98,93 @@ export async function runJob(job: BackgroundJob): Promise<{
             apiKeyPresent: !!config.ANTHROPIC_API_KEY,
         });
 
-        // ── Call Claude ──────────────────────────────────────────────────────
+        // ── Agentic tool-call loop ────────────────────────────────────────────
+        // Claude may call send_email; we handle the tool call and let Claude
+        // produce a final text response (or just the tool result is enough).
         const client   = getClient();
-        const response = await client.messages.create({
-            model:      MODEL,
-            max_tokens: job.max_tokens_per_run,
-            messages:   [{ role: 'user', content: prompt }],
-        });
+        const messages: Anthropic.MessageParam[] = [{ role: 'user', content: prompt }];
 
-        const text         = response.content.find(b => b.type === 'text')?.text?.trim() ?? '';
-        const inputTokens  = response.usage.input_tokens;
-        const outputTokens = response.usage.output_tokens;
+        let text         = '';
+        let inputTokens  = 0;
+        let outputTokens = 0;
+        const emailsSent: string[] = [];
+
+        // Loop up to 3 turns (initial + potential tool calls)
+        for (let turn = 0; turn < 3; turn++) {
+            const response = await client.messages.create({
+                model:      MODEL,
+                max_tokens: job.max_tokens_per_run,
+                tools:      JOB_TOOLS,
+                messages,
+            });
+
+            inputTokens  += response.usage.input_tokens;
+            outputTokens += response.usage.output_tokens;
+
+            // Collect any text output from this turn
+            const turnText = response.content
+                .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+                .map(b => b.text.trim())
+                .filter(Boolean)
+                .join('\n\n');
+            if (turnText) text = turnText;  // last non-empty text wins
+
+            // If no tool calls, we're done
+            if (response.stop_reason !== 'tool_use') break;
+
+            // Handle tool calls
+            const toolUses = response.content.filter(
+                (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
+            );
+
+            const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+            for (const toolUse of toolUses) {
+                if (toolUse.name === 'send_email') {
+                    const input = toolUse.input as {
+                        to: string; subject: string; body: string; cc?: string;
+                    };
+                    logger.info('[jobs/runner] send_email tool called', {
+                        jobId: job.id, to: input.to, subject: input.subject,
+                    });
+                    try {
+                        const result = await sendEmail(userId, {
+                            to:      input.to,
+                            subject: input.subject,
+                            text:    input.body,
+                            cc:      input.cc,
+                        });
+                        emailsSent.push(input.to);
+                        toolResults.push({
+                            type:        'tool_result',
+                            tool_use_id: toolUse.id,
+                            content:     `Email sent successfully. Message ID: ${result.messageId}`,
+                        });
+                    } catch (err: any) {
+                        logger.error('[jobs/runner] send_email tool failed', {
+                            jobId: job.id, error: err?.message,
+                        });
+                        toolResults.push({
+                            type:        'tool_result',
+                            tool_use_id: toolUse.id,
+                            is_error:    true,
+                            content:     `Failed to send email: ${err?.message}`,
+                        });
+                    }
+                } else {
+                    toolResults.push({
+                        type:        'tool_result',
+                        tool_use_id: toolUse.id,
+                        is_error:    true,
+                        content:     `Unknown tool: ${toolUse.name}`,
+                    });
+                }
+            }
+
+            // Append assistant + tool results and continue
+            messages.push({ role: 'assistant', content: response.content });
+            messages.push({ role: 'user',      content: toolResults });
+        }
 
         await completeRun(run.id, {
             status:       'success',
@@ -88,8 +196,9 @@ export async function runJob(job: BackgroundJob): Promise<{
         await setLastRun(job.id, startedAt);
 
         logger.info('Job completed', {
-            jobId: job.id,
-            tokens: inputTokens + outputTokens,
+            jobId:       job.id,
+            tokens:      inputTokens + outputTokens,
+            emailsSent:  emailsSent.length,
         });
 
         return { status: 'success', output: text };
