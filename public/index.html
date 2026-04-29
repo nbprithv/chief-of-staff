@@ -78,23 +78,34 @@
     /* Inline schedule editor */
     .jc-freq-panel {
         border-top:1px solid var(--border); padding-top:12px;
-        display:flex; flex-direction:column; gap:10px;
+        display:flex; flex-direction:column; gap:12px;
     }
-    .jc-freq-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+    .jc-freq-row { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+    .jc-freq-group { display:flex; flex-direction:column; gap:4px; }
+    .jc-freq-label {
+        font-size:9px; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
+        color:var(--ink4);
+    }
     .jc-freq-select {
-        font-family:var(--sans); font-size:12px; padding:5px 8px;
+        font-family:var(--sans); font-size:13px; padding:7px 10px;
         border:1.5px solid var(--border); border-radius:var(--r-sm);
         background:var(--surface); color:var(--ink); outline:none; cursor:pointer;
+        height:34px;
     }
     .jc-freq-select:focus { border-color:var(--accent); }
     .jc-freq-num {
-        font-family:var(--mono); font-size:12px; padding:5px 6px; width:52px; text-align:center;
+        font-family:var(--mono); font-size:13px; padding:7px 8px; width:64px; text-align:center;
         border:1.5px solid var(--border); border-radius:var(--r-sm);
-        background:var(--surface); color:var(--ink); outline:none;
+        background:var(--surface); color:var(--ink); outline:none; height:34px;
     }
-    .jc-freq-time { width:40px; }
     .jc-freq-num:focus { border-color:var(--accent); }
-    .jc-freq-at { font-family:var(--mono); font-size:11px; color:var(--ink3); }
+    .jc-freq-time-input {
+        font-family:var(--mono); font-size:13px; padding:7px 10px;
+        border:1.5px solid var(--border); border-radius:var(--r-sm);
+        background:var(--surface); color:var(--ink); outline:none; cursor:pointer;
+        height:34px; min-width:110px;
+    }
+    .jc-freq-time-input:focus { border-color:var(--accent); }
     .jc-freq-footer { display:flex; justify-content:flex-end; gap:6px; }
     .jc-freq-save {
         font-family:var(--mono); font-size:10px; font-weight:600; text-transform:uppercase;

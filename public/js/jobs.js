@@ -135,27 +135,35 @@ function renderCard(card) {
 }
 
 function renderFreqEditor(skillId, currentSched) {
-    const crn  = parseCron(currentSched);
-    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const crn      = parseCron(currentSched);
+    const days     = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const timeVal  = `${String(crn.hour).padStart(2,'0')}:${String(crn.minute).padStart(2,'0')}`;
+    const isHourly = crn.freq === 'hourly';
     return `
     <div class="jc-freq-panel">
       <div class="jc-freq-row">
-        <select class="jc-freq-select" id="jff-freq-${skillId}" onchange="window.jobs.onFreqChange('${skillId}')">
-          <option value="hourly"  ${crn.freq==='hourly' ?'selected':''}>Every hour</option>
-          <option value="daily"   ${crn.freq==='daily'  ?'selected':''}>Daily</option>
-          <option value="weekly"  ${crn.freq==='weekly' ?'selected':''}>Weekly</option>
-          <option value="monthly" ${crn.freq==='monthly'?'selected':''}>Monthly</option>
-        </select>
-        <select class="jc-freq-select" id="jff-dow-${skillId}" style="${crn.freq!=='weekly'?'display:none':''}">
-          ${days.map((d,i)=>`<option value="${i}" ${crn.dow===i?'selected':''}>${d}</option>`).join('')}
-        </select>
-        <input class="jc-freq-num" id="jff-dom-${skillId}" type="number" min="1" max="28" value="${crn.dom}"
-               style="${crn.freq!=='monthly'?'display:none':''}" title="Day of month">
-        <div id="jff-time-${skillId}" style="${crn.freq==='hourly'?'display:none':'display:flex;align-items:center;gap:4px'}">
-          <span class="jc-freq-at">at</span>
-          <input class="jc-freq-num jc-freq-time" id="jff-hour-${skillId}"   type="number" min="0" max="23" value="${crn.hour}">
-          <span style="color:var(--ink3)">:</span>
-          <input class="jc-freq-num jc-freq-time" id="jff-min-${skillId}"  type="number" min="0" max="59" value="${crn.minute}">
+        <div class="jc-freq-group">
+          <span class="jc-freq-label">Frequency</span>
+          <select class="jc-freq-select" id="jff-freq-${skillId}" onchange="window.jobs.onFreqChange('${skillId}')">
+            <option value="hourly"  ${crn.freq==='hourly' ?'selected':''}>Every hour</option>
+            <option value="daily"   ${crn.freq==='daily'  ?'selected':''}>Daily</option>
+            <option value="weekly"  ${crn.freq==='weekly' ?'selected':''}>Weekly</option>
+            <option value="monthly" ${crn.freq==='monthly'?'selected':''}>Monthly</option>
+          </select>
+        </div>
+        <div class="jc-freq-group" id="jff-dow-wrap-${skillId}" style="${crn.freq!=='weekly'?'display:none':''}">
+          <span class="jc-freq-label">Day</span>
+          <select class="jc-freq-select" id="jff-dow-${skillId}">
+            ${days.map((d,i)=>`<option value="${i}" ${crn.dow===i?'selected':''}>${d}</option>`).join('')}
+          </select>
+        </div>
+        <div class="jc-freq-group" id="jff-dom-wrap-${skillId}" style="${crn.freq!=='monthly'?'display:none':''}">
+          <span class="jc-freq-label">Day of month</span>
+          <input class="jc-freq-num" id="jff-dom-${skillId}" type="number" min="1" max="28" value="${crn.dom}">
+        </div>
+        <div class="jc-freq-group" id="jff-time-${skillId}" style="${isHourly?'display:none':''}">
+          <span class="jc-freq-label">Time</span>
+          <input class="jc-freq-time-input" id="jff-timeval-${skillId}" type="time" value="${timeVal}">
         </div>
       </div>
       <div class="jc-freq-footer">
@@ -255,13 +263,13 @@ window.jobs = {
     },
 
     onFreqChange(skillId) {
-        const freq   = document.getElementById(`jff-freq-${skillId}`)?.value;
-        const dowEl  = document.getElementById(`jff-dow-${skillId}`);
-        const domEl  = document.getElementById(`jff-dom-${skillId}`);
-        const timeEl = document.getElementById(`jff-time-${skillId}`);
-        if (dowEl)  dowEl.style.display  = freq === 'weekly'  ? '' : 'none';
-        if (domEl)  domEl.style.display  = freq === 'monthly' ? '' : 'none';
-        if (timeEl) timeEl.style.display = freq === 'hourly'  ? 'none' : 'flex';
+        const freq    = document.getElementById(`jff-freq-${skillId}`)?.value;
+        const dowWrap = document.getElementById(`jff-dow-wrap-${skillId}`);
+        const domWrap = document.getElementById(`jff-dom-wrap-${skillId}`);
+        const timeEl  = document.getElementById(`jff-time-${skillId}`);
+        if (dowWrap) dowWrap.style.display = freq === 'weekly'  ? '' : 'none';
+        if (domWrap) domWrap.style.display = freq === 'monthly' ? '' : 'none';
+        if (timeEl)  timeEl.style.display  = freq === 'hourly'  ? 'none' : '';
     },
 
     async saveSchedule(skillId) {
@@ -269,10 +277,10 @@ window.jobs = {
         if (!card) return;
 
         const freq     = document.getElementById(`jff-freq-${skillId}`)?.value ?? 'daily';
-        const hour     = parseInt(document.getElementById(`jff-hour-${skillId}`)?.value  ?? '8');
-        const minute   = parseInt(document.getElementById(`jff-min-${skillId}`)?.value  ?? '0');
-        const dow      = parseInt(document.getElementById(`jff-dow-${skillId}`)?.value   ?? '1');
-        const dom      = parseInt(document.getElementById(`jff-dom-${skillId}`)?.value   ?? '1');
+        const timeVal  = document.getElementById(`jff-timeval-${skillId}`)?.value ?? '08:00';
+        const [hour, minute] = timeVal.split(':').map(Number);
+        const dow      = parseInt(document.getElementById(`jff-dow-${skillId}`)?.value ?? '1');
+        const dom      = parseInt(document.getElementById(`jff-dom-${skillId}`)?.value ?? '1');
         const schedule = buildCron({ freq, hour, minute, dow, dom });
 
         try {
