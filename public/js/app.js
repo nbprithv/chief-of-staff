@@ -71,10 +71,13 @@ function initNav() {
 // ── Masthead ───────────────────────────────────────────────────────────────────
 
 function setMastheadDate() {
+    const now  = new Date();
+    const long = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const short = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     const el = document.getElementById('masthead-date');
-    if (el) el.textContent = new Date().toLocaleDateString('en-US', {
-        weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-    });
+    if (el) el.textContent = long;
+    const mob = document.getElementById('masthead-mobile-date');
+    if (mob) mob.textContent = short;
 }
 
 async function loadUser() {
