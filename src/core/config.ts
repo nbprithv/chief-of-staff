@@ -13,6 +13,8 @@ const schema = z.object({
   GOOGLE_REDIRECT_URI:   z.string().url().optional(),
   GOOGLE_REFRESH_TOKEN:  z.string().optional(),
   GMAIL_LABEL:           z.string().default('INBOX'),
+  CRON_SECRET:           z.string().optional(),
+  CRON_USER_ID:          z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);

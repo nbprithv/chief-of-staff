@@ -13,5 +13,11 @@
   ],
   "routes": [
     { "src": "/(.*)", "dest": "/api/index.ts" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/school-email-digest",
+      "schedule": "0 18 * * 1-5"
+    }
   ]
 }

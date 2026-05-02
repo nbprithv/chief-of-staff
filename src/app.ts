@@ -17,6 +17,7 @@ import { emailRouter }        from './domains/email/email.router.js';
 import { googleAuthRouter }   from './integrations/google/google-auth.router.js';
 import { gmailSyncRouter }    from './integrations/google/gmail-sync.router.js';
 import { calendarSyncRouter } from './integrations/google/calendar-sync.router.js';
+import { cronRouter }         from './integrations/google/cron.router.js';
 
 export async function buildApp(options: { publicDir?: string } = {}) {
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -56,6 +57,7 @@ export async function buildApp(options: { publicDir?: string } = {}) {
     await app.register(googleAuthRouter);
     await app.register(gmailSyncRouter);
     await app.register(calendarSyncRouter);
+    await app.register(cronRouter);
 
     await app.register(async (v1) => {
         await v1.register(tasksRouter);
