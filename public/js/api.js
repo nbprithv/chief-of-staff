@@ -1,11 +1,11 @@
 const BASE = '/api/v1';
 
 async function request(method, path, body) {
-    const opts = {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-    };
-    if (body !== undefined) opts.body = JSON.stringify(body);
+    const opts = { method, headers: {} };
+    if (body !== undefined) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+    }
 
     const res = await fetch(path, opts);
     const data = await res.json().catch(() => ({}));
@@ -46,4 +46,20 @@ export const api = {
     nodeCreate: (body)=> request('POST',   `${BASE}/nodes`, body),
     nodeUpdate: (id, body) => request('PATCH',  `${BASE}/nodes/${id}`, body),
     nodeDelete: (id)  => request('DELETE', `${BASE}/nodes/${id}`),
+
+    // ── Meals ─────────────────────────────────────────────────────────────────
+    meals:              (q)    => request('GET',    `${BASE}/meals?${new URLSearchParams(q || {})}`),
+    mealCreate:         (body) => request('POST',   `${BASE}/meals`, body),
+    mealDelete:         (id)   => request('DELETE', `${BASE}/meals/${id}`),
+    mealGenerateGrocery:(body) => request('POST',   `${BASE}/meals/grocery-list`, body ?? {}),
+
+    // ── Background Jobs ───────────────────────────────────────────────────────
+    jobTemplates:  ()      => request('GET',    `${BASE}/jobs/templates`),
+    jobBudget:     ()      => request('GET',    `${BASE}/jobs/budget`),
+    jobs:          ()      => request('GET',    `${BASE}/jobs`),
+    jobCreate:     (body)  => request('POST',   `${BASE}/jobs`, body),
+    jobUpdate:     (id, b) => request('PATCH',  `${BASE}/jobs/${id}`, b),
+    jobDelete:     (id)    => request('DELETE', `${BASE}/jobs/${id}`),
+    jobRuns:       (id, q) => request('GET',    `${BASE}/jobs/${id}/runs?${new URLSearchParams(q || {})}`),
+    jobRunNow:     (id)    => request('POST',   `${BASE}/jobs/${id}/run`),
 };

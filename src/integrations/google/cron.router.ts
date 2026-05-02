@@ -1,9 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import { gmailSyncService } from './gmail-sync.service.js';
 import { config } from '../../core/config.js';
 import { logger } from '../../core/logger.js';
-
-const SCHOOL_DIGEST_QUERY = '(in:sent OR in:drafts) subject:"Galloway School Digest"';
+import { listJobs } from '../../domains/background-jobs/background-jobs.service.js';
+import { runJob } from '../../domains/background-jobs/background-jobs.runner.js';
 
 export async function cronRouter(app: FastifyInstance) {
     app.addHook('preHandler', async (req, reply) => {
@@ -22,12 +21,21 @@ export async function cronRouter(app: FastifyInstance) {
             return reply.status(500).send({ error: 'CRON_USER_ID not configured' });
         }
 
-        const result = await gmailSyncService.sync(
-            { query: SCHOOL_DIGEST_QUERY, maxEmails: 50 },
-            userId,
-        );
+        const jobs = await listJobs(userId);
+        const job  = jobs.find(j => j.skill_id === 'school_email_digest');
 
-        logger.info('Cron: school-email-digest complete', { ...result, userId });
+        if (!job) {
+            logger.warn('Cron: school_email_digest job not found in DB', { userId });
+            return reply.status(404).send({ error: 'School Email Digest job not found — create it in the Jobs UI first' });
+        }
+
+        if (!job.enabled) {
+            logger.info('Cron: school_email_digest job is disabled, skipping', { jobId: job.id });
+            return reply.send({ ok: true, skipped: true, reason: 'job disabled' });
+        }
+
+        const result = await runJob(job);
+        logger.info('Cron: school-email-digest complete', { jobId: job.id, ...result });
         return reply.send({ ok: true, result });
     });
 }

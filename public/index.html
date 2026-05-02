@@ -1,48 +1,301 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#1c1a17">
+    <meta name="theme-color" content="#EAE6DF">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Aide</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="/css/app.css">
+    <style>
+    /* ── Background Jobs — card layout ──────────────────────────────── */
+
+    .jc-budget { margin-bottom:20px; }
+    .jc-budget-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+    .jc-budget-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--ink3); }
+    .jc-budget-amount { font-family:var(--mono); font-size:11px; color:var(--ink3); }
+    .jc-budget-exhausted { color:var(--red); font-weight:700; margin-left:8px; }
+    .jc-budget-track { height:4px; background:var(--surface-2); border-radius:99px; overflow:hidden; }
+    .jc-budget-fill  { height:100%; border-radius:99px; transition:width .4s ease; }
+
+    .jc-grid {
+        display:grid;
+        grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));
+        gap:12px;
+    }
+
+    .jc-card {
+        background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md);
+        padding:16px; display:flex; flex-direction:column; gap:12px;
+        transition:border-color .15s;
+    }
+    .jc-card:hover { border-color:var(--ink4); }
+    .jc-card--paused { opacity:.6; }
+
+    .jc-card-header { display:flex; align-items:flex-start; gap:11px; }
+    .jc-icon {
+        width:36px; height:36px; border-radius:10px; flex-shrink:0;
+        display:flex; align-items:center; justify-content:center;
+        font-family:var(--mono); font-size:14px; font-weight:700;
+    }
+    .jc-card-info { flex:1; min-width:0; }
+    .jc-name { font-size:13px; font-weight:600; color:var(--ink); }
+    .jc-desc { font-size:11px; color:var(--ink3); margin-top:2px; line-height:1.45; }
+
+    .jc-status {
+        flex-shrink:0; margin-top:2px;
+        font-family:var(--mono); font-size:9px; font-weight:700;
+        text-transform:uppercase; letter-spacing:.06em;
+        padding:2px 7px; border-radius:99px; border:1.5px solid;
+    }
+    .jc-status--active   { color:var(--green); border-color:var(--green); background:var(--green-bg,#1a2e1a); }
+    .jc-status--paused   { color:var(--ink4);  border-color:var(--border); background:transparent; }
+    .jc-status--inactive { color:var(--ink4);  border-color:var(--border); background:transparent; }
+
+    .jc-meta { display:flex; flex-direction:column; gap:2px; }
+    .jc-sched-text,
+    .jc-lastrun-text { font-family:var(--mono); font-size:10px; color:var(--ink3); }
+
+    .jc-actions { display:flex; gap:6px; flex-wrap:wrap; }
+
+    .jc-btn {
+        font-family:var(--mono); font-size:10px; font-weight:600;
+        text-transform:uppercase; letter-spacing:.03em;
+        padding:5px 11px; border-radius:var(--r-sm); border:1.5px solid;
+        cursor:pointer; transition:all .12s; white-space:nowrap;
+        display:inline-flex; align-items:center; gap:4px;
+    }
+    .jc-btn--run { background:var(--ink); color:var(--surface); border-color:var(--ink); }
+    .jc-btn--run:hover:not(:disabled) { opacity:.75; }
+    .jc-btn--run:disabled { opacity:.45; cursor:default; }
+    .jc-btn--outline { background:transparent; color:var(--ink2); border-color:var(--border); }
+    .jc-btn--outline:hover { border-color:var(--ink3); color:var(--ink); }
+    .jc-btn--outline-active { border-color:var(--accent); color:var(--accent); }
+
+    /* Inline schedule editor */
+    .jc-freq-panel {
+        border-top:1px solid var(--border); padding-top:12px;
+        display:flex; flex-direction:column; gap:12px;
+    }
+    .jc-freq-row { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+    .jc-freq-group { display:flex; flex-direction:column; gap:4px; }
+    .jc-freq-label {
+        font-size:9px; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
+        color:var(--ink4);
+    }
+    .jc-freq-select {
+        font-family:var(--sans); font-size:13px; padding:7px 10px;
+        border:1.5px solid var(--border); border-radius:var(--r-sm);
+        background:var(--surface); color:var(--ink); outline:none; cursor:pointer;
+        height:34px;
+    }
+    .jc-freq-select:focus { border-color:var(--accent); }
+    .jc-freq-num {
+        font-family:var(--mono); font-size:13px; padding:7px 8px; width:64px; text-align:center;
+        border:1.5px solid var(--border); border-radius:var(--r-sm);
+        background:var(--surface); color:var(--ink); outline:none; height:34px;
+    }
+    .jc-freq-num:focus { border-color:var(--accent); }
+    .jc-freq-time-input {
+        font-family:var(--mono); font-size:13px; padding:7px 10px;
+        border:1.5px solid var(--border); border-radius:var(--r-sm);
+        background:var(--surface); color:var(--ink); outline:none; cursor:pointer;
+        height:34px; min-width:110px;
+    }
+    .jc-freq-time-input:focus { border-color:var(--accent); }
+    .jc-freq-footer { display:flex; justify-content:flex-end; gap:6px; }
+    .jc-freq-save {
+        font-family:var(--mono); font-size:10px; font-weight:600; text-transform:uppercase;
+        letter-spacing:.04em; padding:5px 14px; border-radius:var(--r-sm); cursor:pointer;
+        background:var(--ink); color:var(--surface); border:1.5px solid var(--ink);
+    }
+    .jc-freq-save:hover { opacity:.8; }
+    .jc-freq-cancel {
+        font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.04em;
+        padding:5px 10px; border-radius:var(--r-sm); cursor:pointer;
+        background:transparent; color:var(--ink3); border:1.5px solid var(--border);
+    }
+    .jc-freq-cancel:hover { border-color:var(--ink3); color:var(--ink); }
+
+    /* ── Job detail modal ──────────────────────────────────────────── */
+
+    .jm-overlay {
+        display:none; position:fixed; inset:0; z-index:200;
+        background:rgba(0,0,0,.45); backdrop-filter:blur(2px);
+        align-items:center; justify-content:center;
+        padding:20px;
+    }
+    .jm-overlay.open { display:flex; }
+
+    .jm-panel {
+        background:var(--surface); border:1px solid var(--border);
+        border-radius:var(--r-lg); box-shadow:var(--shadow-md);
+        width:100%; max-width:540px; max-height:85vh;
+        display:flex; flex-direction:column; overflow:hidden;
+        animation:fadeIn .18s ease;
+    }
+
+    .jm-header {
+        display:flex; align-items:flex-start; gap:12px;
+        padding:20px 20px 16px; border-bottom:1px solid var(--border);
+        flex-shrink:0;
+    }
+    .jm-icon {
+        width:40px; height:40px; border-radius:10px; flex-shrink:0;
+        display:flex; align-items:center; justify-content:center;
+        font-family:var(--mono); font-size:16px; font-weight:700;
+    }
+    .jm-header-info { flex:1; min-width:0; }
+    .jm-title { font-size:16px; font-weight:600; color:var(--ink); letter-spacing:-.2px; }
+    .jm-subtitle { font-size:12px; color:var(--ink3); margin-top:3px; line-height:1.45; }
+    .jm-close {
+        background:none; border:none; cursor:pointer; color:var(--ink3);
+        font-size:20px; line-height:1; padding:2px 4px; border-radius:var(--r-sm);
+        transition:color .1s, background .1s; margin-top:-2px; flex-shrink:0;
+    }
+    .jm-close:hover { color:var(--ink); background:var(--surface-1); }
+
+    .jm-meta {
+        display:flex; gap:16px; padding:12px 20px;
+        border-bottom:1px solid var(--border); flex-shrink:0;
+        flex-wrap:wrap;
+    }
+    .jm-meta-item { display:flex; flex-direction:column; gap:2px; }
+    .jm-meta-label {
+        font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+        color:var(--ink4);
+    }
+    .jm-meta-value { font-family:var(--mono); font-size:11px; color:var(--ink2); }
+
+    .jm-body { overflow-y:auto; flex:1; padding:16px 20px 20px; }
+    .jm-body::-webkit-scrollbar { width:3px; }
+    .jm-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+    .jm-runs-title {
+        font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+        color:var(--ink4); margin-bottom:10px;
+    }
+
+    .jm-run {
+        border:1px solid var(--border); border-radius:var(--r-md);
+        padding:12px 14px; margin-bottom:8px; background:var(--surface-1);
+    }
+    .jm-run-header {
+        display:flex; align-items:center; gap:8px; margin-bottom:4px;
+    }
+    .jm-run-status {
+        font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+        padding:2px 7px; border-radius:99px; border:1.5px solid; flex-shrink:0;
+    }
+    .jm-run-status--success { color:var(--green); border-color:var(--green); background:var(--green-bg); }
+    .jm-run-status--error   { color:var(--red);   border-color:var(--red);   background:var(--red-bg); }
+    .jm-run-status--skipped { color:var(--ink4);  border-color:var(--border); background:transparent; }
+    .jm-run-time { font-family:var(--mono); font-size:10px; color:var(--ink4); margin-left:auto; }
+    .jm-run-tokens { font-family:var(--mono); font-size:10px; color:var(--ink3); }
+    .jm-run-output {
+        font-size:12px; color:var(--ink2); line-height:1.55; margin-top:6px;
+        white-space:pre-wrap; max-height:120px; overflow-y:auto;
+        border-top:1px solid var(--border); padding-top:6px;
+    }
+    .jm-run-error {
+        font-size:11px; color:var(--red); font-family:var(--mono);
+        margin-top:6px; border-top:1px solid var(--border); padding-top:6px;
+        word-break:break-all;
+    }
+    .jm-empty { color:var(--ink4); font-size:13px; padding:20px 0; text-align:center; }
+    .jm-loading { display:flex; align-items:center; justify-content:center; padding:32px; }
+
+    @media (max-width:640px) {
+        .jm-overlay { padding:0; align-items:flex-end; }
+        .jm-panel {
+            max-width:100%; border-radius:var(--r-lg) var(--r-lg) 0 0;
+            max-height:80dvh; max-height:80vh;
+            padding-bottom:env(safe-area-inset-bottom);
+        }
+    }
+    </style>
 </head>
 <body>
 <div class="app">
 
     <!-- ── Masthead ─────────────────────────────────────────────────────────── -->
     <header class="masthead">
-        <div class="masthead-title">Aide</div>
+        <div class="masthead-mobile-brand">
+            <span class="masthead-mobile-name">aide</span>
+            <span class="masthead-mobile-date" id="masthead-mobile-date"></span>
+        </div>
         <div class="masthead-date" id="masthead-date"></div>
         <div class="masthead-right">
             <span class="masthead-user" id="masthead-user"></span>
+            <button class="masthead-theme-btn" id="theme-toggle-btn" aria-label="Toggle theme">☾</button>
             <button class="masthead-sync-btn" id="sync-btn">↻ Sync</button>
         </div>
     </header>
 
     <!-- ── Sidenav ──────────────────────────────────────────────────────────── -->
     <nav class="sidenav">
+        <div class="sidenav-brand">aide</div>
         <div class="nav-section">
-            <div class="nav-item active" data-view="dashboard">Dashboard</div>
+            <div class="nav-item active" data-view="calendar">
+                <span class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="13" height="12" rx="2"/><path d="M1.5 6.5h13"/><path d="M5 1v3M11 1v3"/></svg></span>
+                Today
+            </div>
+            <div class="nav-item" data-view="dashboard">
+                <span class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.5"/></svg></span>
+                Overview
+            </div>
             <div class="nav-item" data-view="digests" id="nav-digests">
+                <span class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5h12M2 8h8M2 12.5h10"/></svg></span>
                 Digests <span class="nav-badge-gray" id="badge-digests"></span>
             </div>
-            <div class="nav-item" data-view="calendar">Calendar</div>
+        </div>
+        <div class="nav-section">
+            <div class="nav-item" data-view="jobs">
+                <span class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5l2 1.5"/></svg></span>
+                Jobs
+            </div>
         </div>
         <div class="nav-section">
             <div class="nav-label">Account</div>
-            <div class="nav-item" data-view="settings">Google</div>
+            <div class="nav-item" data-view="settings">
+                <span class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="2.5"/><path d="M2.5 13.5c0-3.038 2.462-5.5 5.5-5.5s5.5 2.462 5.5 5.5"/></svg></span>
+                Google
+            </div>
         </div>
     </nav>
 
     <!-- ── Main content ─────────────────────────────────────────────────────── -->
     <main class="main">
 
-        <!-- Dashboard view -->
-        <div class="view active" id="view-dashboard">
+        <!-- Calendar / Today view — PRIMARY -->
+        <div class="view active" id="view-calendar">
+            <div class="cal-toolbar">
+                <div class="cal-nav-group">
+                    <button class="cal-nav-btn" id="cal-prev-btn">‹</button>
+                    <span class="cal-month-label" id="cal-month-label"></span>
+                    <button class="cal-nav-btn" id="cal-next-btn">›</button>
+                </div>
+                <div class="cal-toolbar-right">
+                    <span class="section-count" id="calendar-count"></span>
+                    <button class="section-action" id="sync-calendar-btn">↻ Sync</button>
+                </div>
+            </div>
+            <div class="cal-month-grid">
+                <div id="cal-grid-header" class="cal-grid-header"></div>
+                <div id="cal-grid" class="cal-grid"></div>
+            </div>
+
+            <!-- Day panel: Schedule | Meals | Focus -->
+            <div class="cal-day-panel" id="cal-day-panel">
+                <div class="placeholder-row"><span class="spinner"></span></div>
+            </div>
+        </div>
+
+        <!-- Overview / Dashboard view -->
+        <div class="view" id="view-dashboard">
 
             <!-- Metric strip -->
             <div class="metric-strip">
@@ -99,14 +352,15 @@
             </div>
         </div>
 
-        <!-- Calendar view -->
-        <div class="view" id="view-calendar">
+        <!-- Jobs view -->
+        <div class="view" id="view-jobs">
             <div class="section-head">
-                <div class="section-title">Calendar</div>
-                <div class="section-count" id="calendar-count"></div>
-                <button class="section-action" id="sync-calendar-btn">↻ Sync</button>
+                <div class="section-title">Background Jobs</div>
             </div>
-            <div id="calendar-list">
+
+            <div id="jobs-budget-bar"></div>
+
+            <div class="jc-grid" id="jobs-cards">
                 <div class="placeholder-row"><span class="spinner"></span></div>
             </div>
         </div>
@@ -118,33 +372,74 @@
                 Checking connection…
             </div>
             <div style="display:flex;gap:12px;flex-wrap:wrap">
-                <a href="/integrations/google/auth"
-                   style="display:inline-flex;align-items:center;gap:8px;padding:9px 18px;background:var(--ink);color:#f0ece4;border-radius:2px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;text-decoration:none;transition:background 0.15s"
-                   onmouseover="this.style.background='var(--accent)'" onmouseout="this.style.background='var(--ink)'">
-                    Reconnect Google →
-                </a>
-                <button id="signout-btn"
-                   style="display:inline-flex;align-items:center;padding:9px 18px;background:transparent;color:var(--ink3);border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer;transition:all 0.15s"
-                   onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
-                   onmouseout="this.style.borderColor='var(--rule)';this.style.color='var(--ink3)'">
-                    Sign out
-                </button>
+                <a href="/integrations/google/auth" class="settings-btn-primary">Reconnect Google →</a>
+                <button id="signout-btn" class="settings-btn-ghost">Sign out</button>
             </div>
         </div>
 
-    </main>
-</div>
-
-<!-- ── Digest modal ───────────────────────────────────────────────────────── -->
-<div class="modal-overlay" id="digest-modal">
-    <div class="modal-panel">
-        <div class="modal-header">
-            <div class="modal-title" id="modal-subject"></div>
-            <button class="modal-close" id="modal-close">✕</button>
+        <!-- Event detail view -->
+        <div class="view" id="view-event">
+            <div class="email-detail-header">
+                <button class="back-btn" id="event-back-btn">← Back</button>
+            </div>
+            <div class="email-detail-subject" id="event-detail-title"></div>
+            <div class="event-detail-time" id="event-detail-time"></div>
+            <div class="event-detail-fields" id="event-detail-fields"></div>
         </div>
-        <div class="modal-meta" id="modal-meta"></div>
-        <div class="modal-body" id="modal-body"></div>
+
+        <!-- Email detail view -->
+        <div class="view" id="view-email">
+            <div class="email-detail-header">
+                <button class="back-btn" id="email-back-btn">← Back</button>
+            </div>
+            <div class="email-detail-subject" id="email-detail-subject"></div>
+            <div class="email-detail-meta" id="email-detail-meta"></div>
+            <div class="email-detail-body" id="email-detail-body"></div>
+        </div>
+
+    </main>
+
+    <!-- ── Job detail modal ──────────────────────────────────────────────── -->
+    <div class="jm-overlay" id="jm-overlay" onclick="window.jobs.closeModal(event)">
+        <div class="jm-panel" id="jm-panel">
+            <div class="jm-header" id="jm-header">
+                <div class="jm-icon" id="jm-icon"></div>
+                <div class="jm-header-info">
+                    <div class="jm-title" id="jm-title"></div>
+                    <div class="jm-subtitle" id="jm-subtitle"></div>
+                </div>
+                <button class="jm-close" onclick="window.jobs.closeModal()">✕</button>
+            </div>
+            <div class="jm-meta" id="jm-meta"></div>
+            <div class="jm-body" id="jm-body">
+                <div class="jm-loading"><span class="spinner"></span></div>
+            </div>
+        </div>
     </div>
+
+    <!-- ── Mobile bottom nav ─────────────────────────────────────────────── -->
+    <nav class="bottom-nav" aria-label="Main navigation">
+        <div class="nav-item active" data-view="calendar">
+            <span class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="13" height="12" rx="2"/><path d="M1.5 6.5h13"/><path d="M5 1v3M11 1v3"/></svg></span>
+            <span class="bottom-nav-label">Today</span>
+        </div>
+        <div class="nav-item" data-view="dashboard">
+            <span class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.5"/></svg></span>
+            <span class="bottom-nav-label">Overview</span>
+        </div>
+        <div class="nav-item" data-view="digests">
+            <span class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5h12M2 8h8M2 12.5h10"/></svg></span>
+            <span class="bottom-nav-label">Digests</span>
+        </div>
+        <div class="nav-item" data-view="jobs">
+            <span class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5l2 1.5"/></svg></span>
+            <span class="bottom-nav-label">Jobs</span>
+        </div>
+        <div class="nav-item" data-view="settings">
+            <span class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="2.5"/><path d="M2.5 13.5c0-3.038 2.462-5.5 5.5-5.5s5.5 2.462 5.5 5.5"/></svg></span>
+            <span class="bottom-nav-label">NPSOAI</span>
+        </div>
+    </nav>
 </div>
 
 <script type="module" src="/js/app.js"></script>
