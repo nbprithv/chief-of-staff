@@ -1,5 +1,4 @@
 import type { FastifyInstance } from 'fastify';
-import cron from 'node-cron';
 import { getUserId } from '../../core/session.js';
 import { ValidationError, NotFoundError } from '../../core/errors.js';
 import { logger } from '../../core/logger.js';
@@ -69,8 +68,6 @@ export async function backgroundJobsRouter(app: FastifyInstance): Promise<void> 
             nameType:       typeof body?.name,
             hasPrompt:      !!body?.prompt,
             promptType:     typeof body?.prompt,
-            hasSchedule:    !!body?.schedule,
-            scheduleValue:  body?.schedule,
             maxTokens:      body?.max_tokens_per_run,
             enabled:        body?.enabled,
         });
@@ -83,23 +80,18 @@ export async function backgroundJobsRouter(app: FastifyInstance): Promise<void> 
             logger.error('[jobs/create] validation failed: prompt', { prompt: typeof body.prompt });
             throw new ValidationError('prompt is required');
         }
-        if (!body.schedule || typeof body.schedule !== 'string') {
-            logger.error('[jobs/create] validation failed: schedule missing', { schedule: body.schedule });
-            throw new ValidationError('schedule is required');
-        }
-        if (!cron.validate(body.schedule as string)) {
-            logger.error('[jobs/create] validation failed: bad cron', { schedule: body.schedule });
-            throw new ValidationError(`Invalid cron expression: ${body.schedule}`);
-        }
+        const skillId = (body.skill_id as string | undefined) ?? 'custom';
+        const tpl     = SKILL_TEMPLATES.find(t => t.id === skillId);
+        const schedule = tpl?.suggestedSchedule ?? '0 8 * * *';
 
         try {
             const job = await createJob({
                 user_id:            userId,
                 name:               body.name as string,
                 description:        (body.description as string | undefined) ?? null,
-                skill_id:           (body.skill_id    as string | undefined) ?? 'custom',
+                skill_id:           skillId,
                 prompt:             body.prompt as string,
-                schedule:           body.schedule as string,
+                schedule,
                 enabled:            body.enabled !== false,
                 max_tokens_per_run: typeof body.max_tokens_per_run === 'number' ? body.max_tokens_per_run : 500,
             });
@@ -137,18 +129,12 @@ export async function backgroundJobsRouter(app: FastifyInstance): Promise<void> 
 
         logger.info('[jobs/update] patch received', { jobId: id, bodyKeys: Object.keys(body ?? {}) });
 
-        if (body.schedule && !cron.validate(body.schedule as string)) {
-            logger.error('[jobs/update] validation failed: bad cron', { jobId: id, schedule: body.schedule });
-            throw new ValidationError(`Invalid cron expression: ${body.schedule}`);
-        }
-
         try {
             const job = await updateJob(id, userId, {
                 name:               body.name               as string | undefined,
                 description:        body.description        as string | undefined,
                 skill_id:           body.skill_id           as string | undefined,
                 prompt:             body.prompt             as string | undefined,
-                schedule:           body.schedule           as string | undefined,
                 enabled:            body.enabled            as boolean | undefined,
                 max_tokens_per_run: body.max_tokens_per_run as number | undefined,
             });

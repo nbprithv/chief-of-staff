@@ -66,7 +66,7 @@ export async function createJob(input: Omit<NewBackgroundJob, 'id' | 'created_at
 export async function updateJob(
     id: string,
     userId: string,
-    patch: Partial<Pick<BackgroundJob, 'name' | 'description' | 'skill_id' | 'prompt' | 'schedule' | 'enabled' | 'max_tokens_per_run'>>,
+    patch: Partial<Pick<BackgroundJob, 'name' | 'description' | 'skill_id' | 'prompt' | 'enabled' | 'max_tokens_per_run'>>,
 ): Promise<BackgroundJob | null> {
     const [row] = await db
         .update(backgroundJobs)

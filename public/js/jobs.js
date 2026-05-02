@@ -13,24 +13,18 @@ const CARDS = [
 
 // ── State ──────────────────────────────────────────────────────────────────────
 
+// Schedules are defined in vercel.json and are not configurable via the UI.
+// This map reflects the crons section of vercel.json for display purposes.
+const VERCEL_SCHEDULES = {
+    school_email_digest: '0 18 * * 1-5',
+};
+
 let jobs        = [];
 let templates   = [];   // full templates from API (includes defaultPrompt)
 let budget      = { spent: 0, limit: 20, remaining: 20, ok: true };
-let schedOpen   = null; // skillId with schedule editor open
 let runningSet  = new Set();
 
 // ── Cron helpers ───────────────────────────────────────────────────────────────
-
-function buildCron({ freq, hour = 8, minute = 0, dow = 1, dom = 1 } = {}) {
-    const h = String(hour), m = String(minute);
-    switch (freq) {
-        case 'hourly':  return `${m} * * * *`;
-        case 'daily':   return `${m} ${h} * * *`;
-        case 'weekly':  return `${m} ${h} * * ${dow}`;
-        case 'monthly': return `${m} ${h} ${dom} * *`;
-        default:        return `${m} ${h} * * *`;
-    }
-}
 
 function parseCron(expr) {
     if (!expr) return { freq: 'daily', hour: 8, minute: 0, dow: 1, dom: 1 };
@@ -85,10 +79,9 @@ function renderCards() {
 function renderCard(card) {
     const tpl     = templates.find(t => t.id === card.id);
     const job     = jobs.find(j => j.skill_id === card.id) ?? null;
-    const sched   = job?.schedule ?? tpl?.suggestedSchedule ?? '0 8 * * *';
+    const sched   = VERCEL_SCHEDULES[card.id] ?? tpl?.suggestedSchedule ?? '0 8 * * *';
     const enabled = job ? job.enabled : true;
     const exists  = !!job;
-    const isOpen  = schedOpen === card.id;
     const isRunning = runningSet.has(card.id);
 
     const statusLabel = !exists ? 'inactive' : enabled ? 'active' : 'paused';
@@ -122,53 +115,9 @@ function renderCard(card) {
             ? '<span class="spinner" style="width:9px;height:9px;border-width:1.5px;border-color:currentColor;border-top-color:transparent"></span>'
             : '▶&nbsp;Run now'}
         </button>
-        <button class="jc-btn jc-btn--outline${isOpen ? ' jc-btn--outline-active' : ''}" onclick="window.jobs.toggleSchedule('${card.id}')">
-          ⏱&nbsp;Schedule
-        </button>
         <button class="jc-btn jc-btn--outline" onclick="window.jobs.togglePause('${card.id}')">
           ${!enabled && exists ? '▷&nbsp;Resume' : '⏸&nbsp;Pause'}
         </button>
-      </div>
-
-      ${isOpen ? renderFreqEditor(card.id, sched) : ''}
-    </div>`;
-}
-
-function renderFreqEditor(skillId, currentSched) {
-    const crn      = parseCron(currentSched);
-    const days     = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    const timeVal  = `${String(crn.hour).padStart(2,'0')}:${String(crn.minute).padStart(2,'0')}`;
-    const isHourly = crn.freq === 'hourly';
-    return `
-    <div class="jc-freq-panel">
-      <div class="jc-freq-row">
-        <div class="jc-freq-group">
-          <span class="jc-freq-label">Frequency</span>
-          <select class="jc-freq-select" id="jff-freq-${skillId}" onchange="window.jobs.onFreqChange('${skillId}')">
-            <option value="hourly"  ${crn.freq==='hourly' ?'selected':''}>Every hour</option>
-            <option value="daily"   ${crn.freq==='daily'  ?'selected':''}>Daily</option>
-            <option value="weekly"  ${crn.freq==='weekly' ?'selected':''}>Weekly</option>
-            <option value="monthly" ${crn.freq==='monthly'?'selected':''}>Monthly</option>
-          </select>
-        </div>
-        <div class="jc-freq-group" id="jff-dow-wrap-${skillId}" style="${crn.freq!=='weekly'?'display:none':''}">
-          <span class="jc-freq-label">Day</span>
-          <select class="jc-freq-select" id="jff-dow-${skillId}">
-            ${days.map((d,i)=>`<option value="${i}" ${crn.dow===i?'selected':''}>${d}</option>`).join('')}
-          </select>
-        </div>
-        <div class="jc-freq-group" id="jff-dom-wrap-${skillId}" style="${crn.freq!=='monthly'?'display:none':''}">
-          <span class="jc-freq-label">Day of month</span>
-          <input class="jc-freq-num" id="jff-dom-${skillId}" type="number" min="1" max="28" value="${crn.dom}">
-        </div>
-        <div class="jc-freq-group" id="jff-time-${skillId}" style="${isHourly?'display:none':''}">
-          <span class="jc-freq-label">Time</span>
-          <input class="jc-freq-time-input" id="jff-timeval-${skillId}" type="time" value="${timeVal}">
-        </div>
-      </div>
-      <div class="jc-freq-footer">
-        <button class="jc-freq-cancel" onclick="window.jobs.cancelSchedule()">Cancel</button>
-        <button class="jc-freq-save" onclick="window.jobs.saveSchedule('${skillId}')">Save</button>
       </div>
     </div>`;
 }
@@ -217,7 +166,6 @@ async function ensureJobExists(card) {
         name:               card.name,
         skill_id:           card.id,
         prompt:             tpl?.defaultPrompt ?? '',
-        schedule:           tpl?.suggestedSchedule ?? '0 8 * * *',
         enabled:            true,
         max_tokens_per_run: tpl?.suggestedMaxTokens ?? 500,
     });
@@ -252,48 +200,6 @@ window.jobs = {
         await refresh();
     },
 
-    toggleSchedule(skillId) {
-        schedOpen = schedOpen === skillId ? null : skillId;
-        renderCards();
-    },
-
-    cancelSchedule() {
-        schedOpen = null;
-        renderCards();
-    },
-
-    onFreqChange(skillId) {
-        const freq    = document.getElementById(`jff-freq-${skillId}`)?.value;
-        const dowWrap = document.getElementById(`jff-dow-wrap-${skillId}`);
-        const domWrap = document.getElementById(`jff-dom-wrap-${skillId}`);
-        const timeEl  = document.getElementById(`jff-time-${skillId}`);
-        if (dowWrap) dowWrap.style.display = freq === 'weekly'  ? '' : 'none';
-        if (domWrap) domWrap.style.display = freq === 'monthly' ? '' : 'none';
-        if (timeEl)  timeEl.style.display  = freq === 'hourly'  ? 'none' : '';
-    },
-
-    async saveSchedule(skillId) {
-        const card = CARDS.find(c => c.id === skillId);
-        if (!card) return;
-
-        const freq     = document.getElementById(`jff-freq-${skillId}`)?.value ?? 'daily';
-        const timeVal  = document.getElementById(`jff-timeval-${skillId}`)?.value ?? '08:00';
-        const [hour, minute] = timeVal.split(':').map(Number);
-        const dow      = parseInt(document.getElementById(`jff-dow-${skillId}`)?.value ?? '1');
-        const dom      = parseInt(document.getElementById(`jff-dom-${skillId}`)?.value ?? '1');
-        const schedule = buildCron({ freq, hour, minute, dow, dom });
-
-        try {
-            const job = await ensureJobExists(card);
-            await api.jobUpdate(job.id, { schedule });
-            schedOpen = null;
-        } catch (err) {
-            alert(`Error saving schedule: ${err.message}`);
-            return;
-        }
-        await refresh();
-    },
-
     closeModal(event) {
         // If triggered by overlay click, only close when clicking the backdrop itself
         if (event && event.target !== document.getElementById('jm-overlay')) return;
@@ -306,7 +212,7 @@ window.jobs = {
 
         const job     = jobs.find(j => j.skill_id === skillId) ?? null;
         const tpl     = templates.find(t => t.id === skillId);
-        const sched   = job?.schedule ?? tpl?.suggestedSchedule ?? '0 8 * * *';
+        const sched   = VERCEL_SCHEDULES[skillId] ?? tpl?.suggestedSchedule ?? '0 8 * * *';
         const enabled = job ? job.enabled : true;
         const exists  = !!job;
         const statusLabel = !exists ? 'inactive' : enabled ? 'active' : 'paused';
@@ -388,7 +294,6 @@ window.jobs = {
                     name:               card.name,
                     skill_id:           skillId,
                     prompt:             tpl?.defaultPrompt ?? '',
-                    schedule:           tpl?.suggestedSchedule ?? '0 8 * * *',
                     enabled:            false,
                     max_tokens_per_run: tpl?.suggestedMaxTokens ?? 500,
                 });
