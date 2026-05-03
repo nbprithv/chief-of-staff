@@ -8,7 +8,7 @@ const CARDS = [
     { id: 'week_ahead',          name: 'Week Ahead',          letter: 'W', color: '#7B5EA7' },
     { id: 'inbox_triage',        name: 'Inbox Triage',        letter: 'I', color: '#B07D2F' },
     { id: 'overdue_nudge',       name: 'Overdue Nudge',       letter: 'O', color: '#C25B3F' },
-    { id: 'weeknight_meal_planner', name: 'Meal Prep',         letter: 'M', color: '#3D8C6E' },
+    { id: 'weeknight_meal_planner', name: 'Weeknight Dinner Plan', letter: 'W', color: '#3D8C6E' },
 ];
 
 // ── State ──────────────────────────────────────────────────────────────────────
@@ -83,7 +83,15 @@ function renderBudget() {
 function renderCards() {
     const el = document.getElementById('jobs-cards');
     if (!el) return;
-    el.innerHTML = CARDS.map(card => renderCard(card)).join('');
+    const sorted = [...CARDS].sort((a, b) => {
+        const jobA = jobs.find(j => j.skill_id === a.id);
+        const jobB = jobs.find(j => j.skill_id === b.id);
+        const activeA = jobA?.enabled ? 0 : 1;
+        const activeB = jobB?.enabled ? 0 : 1;
+        if (activeA !== activeB) return activeA - activeB;
+        return a.name.localeCompare(b.name);
+    });
+    el.innerHTML = sorted.map(card => renderCard(card)).join('');
 }
 
 function renderCard(card) {
