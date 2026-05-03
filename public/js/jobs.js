@@ -8,7 +8,7 @@ const CARDS = [
     { id: 'week_ahead',          name: 'Week Ahead',          letter: 'W', color: '#7B5EA7' },
     { id: 'inbox_triage',        name: 'Inbox Triage',        letter: 'I', color: '#B07D2F' },
     { id: 'overdue_nudge',       name: 'Overdue Nudge',       letter: 'O', color: '#C25B3F' },
-    { id: 'meal_prep_reminder',  name: 'Meal Prep',           letter: 'M', color: '#3D8C6E' },
+    { id: 'weeknight_meal_planner', name: 'Meal Prep',         letter: 'M', color: '#3D8C6E' },
 ];
 
 // ── State ──────────────────────────────────────────────────────────────────────
@@ -16,7 +16,8 @@ const CARDS = [
 // Schedules are defined in vercel.json and are not configurable via the UI.
 // This map reflects the crons section of vercel.json for display purposes.
 const VERCEL_SCHEDULES = {
-    school_email_digest: '0 18 * * 1-5',
+    school_email_digest:    '0 18 * * 1-5',
+    weeknight_meal_planner: '0 13 * * 6',
 };
 
 let jobs        = [];
