@@ -266,19 +266,18 @@ export async function runWeeklyMealPlanner(job: BackgroundJob): Promise<MealPlan
         }
     }
 
-    // ── Step 2: Calculate dates (run is Saturday → +1 = Sunday, +2 = Monday …) ──
-    const sundayDate = addDays(today, 1);
-    const weekDays   = [
-        addDays(today, 2), // Monday
-        addDays(today, 3), // Tuesday
-        addDays(today, 4), // Wednesday
-        addDays(today, 5), // Thursday
-        addDays(today, 6), // Friday
-    ];
+    // ── Step 2: Calculate dates ───────────────────────────────────────────────
+    // Always find the *next* Sunday regardless of what day the job is triggered.
+    // (7 - dow) % 7 gives 0 for Sunday → use 7 so we never land on today itself.
+    const todayDow        = today.getDay();                           // 0=Sun … 6=Sat
+    const daysToSunday    = (7 - todayDow) % 7 || 7;                 // Sat→1, Sun→7, Mon→6 …
+    const sundayDate      = addDays(today, daysToSunday);
+    const weekDays        = [1, 2, 3, 4, 5].map(n => addDays(sundayDate, n)); // Mon–Fri
     const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     const weekLabel = `${toDisplayDate(weekDays[0])} – ${toDisplayDate(weekDays[4])}`;
 
     // ── Step 3: Create weeknight calendar events ──────────────────────────────
+    const GUESTS   = ['niranjan.prithviraj@gmail.com'];
     const errors:  string[] = [];
     const created: string[] = [];
 
@@ -309,6 +308,7 @@ export async function runWeeklyMealPlanner(job: BackgroundJob): Promise<MealPlan
                 date,
                 start_time: '17:00',
                 end_time:   '17:30',
+                attendees:  GUESTS,
             });
             created.push(`${dayName}: ${title}`);
             logger.info('[meal-planner] created dinner event', { title, date });
@@ -342,6 +342,7 @@ export async function runWeeklyMealPlanner(job: BackgroundJob): Promise<MealPlan
             date:        toDateString(sundayDate),
             start_time:  '17:00',
             end_time:    '18:00',
+            attendees:   GUESTS,
         });
         created.push('Sunday: 🛒 Weekly Shopping List');
         logger.info('[meal-planner] created shopping list event', { date: toDateString(sundayDate) });
