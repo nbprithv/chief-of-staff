@@ -117,6 +117,7 @@ function renderCard(card) {
       <div class="jc-meta">
         <span class="jc-sched-text">⏰ ${describeCron(sched)}</span>
         <span class="jc-lastrun-text">${lastRunText}</span>
+        ${card.id === 'weeknight_meal_planner' ? '<a class="jc-recipes-link" href="/weeknight-recipes.pdf" target="_blank" rel="noopener">📄 Recipe book</a>' : ''}
       </div>
 
       <div class="jc-actions">
