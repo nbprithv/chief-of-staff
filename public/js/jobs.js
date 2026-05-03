@@ -27,24 +27,33 @@ let runningSet  = new Set();
 // ── Cron helpers ───────────────────────────────────────────────────────────────
 
 function parseCron(expr) {
-    if (!expr) return { freq: 'daily', hour: 8, minute: 0, dow: 1, dom: 1 };
+    if (!expr) return { freq: 'daily', hour: 8, minute: 0, dow: 1, dom: 1, dowRaw: '*' };
     const [m, h, dom, , dow] = expr.split(' ');
-    if (h === '*')                  return { freq: 'hourly',  hour: 0,           minute: +m, dow: 1,    dom: 1 };
-    if (dom !== '*' && dow === '*') return { freq: 'monthly', hour: +h,          minute: +m, dow: 1,    dom: +dom };
-    if (dow !== '*' && dom === '*') return { freq: 'weekly',  hour: +h,          minute: +m, dow: +dow, dom: 1 };
-    return { freq: 'daily', hour: +h, minute: +m, dow: 1, dom: 1 };
+    if (h === '*')                  return { freq: 'hourly',   hour: 0,  minute: +m, dow: 1,    dom: 1,    dowRaw: dow };
+    if (dom !== '*' && dow === '*') return { freq: 'monthly',  hour: +h, minute: +m, dow: 1,    dom: +dom, dowRaw: dow };
+    if (dow !== '*' && dom === '*') {
+        // Range (e.g. 1-5) or list (e.g. 1,3,5) — not a single day
+        if (dow.includes('-') || dow.includes(',')) {
+            return { freq: 'weekdays', hour: +h, minute: +m, dow: 1, dom: 1, dowRaw: dow };
+        }
+        return { freq: 'weekly', hour: +h, minute: +m, dow: +dow, dom: 1, dowRaw: dow };
+    }
+    return { freq: 'daily', hour: +h, minute: +m, dow: 1, dom: 1, dowRaw: dow };
 }
 
+const DOW_RANGE_LABELS = { '1-5': 'Mon–Fri', '0-4': 'Sun–Thu', '1-6': 'Mon–Sat' };
+
 function describeCron(expr) {
-    const { freq, hour, minute, dow, dom } = parseCron(expr);
+    const { freq, hour, minute, dow, dom, dowRaw } = parseCron(expr);
     const t    = `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
     const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     switch (freq) {
-        case 'hourly':  return `Every hour at :${String(minute).padStart(2,'0')}`;
-        case 'daily':   return `Daily at ${t}`;
-        case 'weekly':  return `${days[dow]} at ${t}`;
-        case 'monthly': return `Monthly · day ${dom} at ${t}`;
-        default:        return expr;
+        case 'hourly':   return `Every hour at :${String(minute).padStart(2,'0')}`;
+        case 'daily':    return `Daily at ${t}`;
+        case 'weekly':   return `${days[dow]} at ${t}`;
+        case 'monthly':  return `Monthly · day ${dom} at ${t}`;
+        case 'weekdays': return `${DOW_RANGE_LABELS[dowRaw] ?? dowRaw} at ${t}`;
+        default:         return expr;
     }
 }
 
