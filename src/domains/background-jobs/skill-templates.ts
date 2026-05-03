@@ -75,6 +75,14 @@ Write a brief, practical meal-prep reminder: what to shop for, what to prep in a
         suggestedMaxTokens: 400,
     },
     {
+        id:          'weeknight_meal_planner',
+        name:        'Weeknight Meal Planner',
+        description: 'Runs every Saturday. Picks 5 weeknight dinners (always includes salmon + a veggie pairing on one night), creates Google Calendar events Mon–Fri at 5 PM with full recipes, and adds a consolidated shopping list on Sunday at 5 PM.',
+        defaultPrompt: '',   // handled entirely by the skill runner — prompt not used
+        suggestedSchedule:  '0 14 * * 6',   // 9 AM ET every Saturday
+        suggestedMaxTokens: 500,
+    },
+    {
         id:          'custom',
         name:        'Custom',
         description: 'Write your own prompt from scratch.',

@@ -12,6 +12,7 @@ import {
 } from './background-jobs.service.js';
 import { sendEmail } from '../../integrations/google/gmail-send.service.js';
 import { runSchoolEmailDigest } from './skills/school-email-digest.skill.js';
+import { runWeeklyMealPlanner }  from './skills/weeknight-meal-planner.skill.js';
 
 // ── Skill dispatch map ────────────────────────────────────────────────────────
 // Add entries here to give a skill its own runner instead of the generic loop.
@@ -23,7 +24,8 @@ const SKILL_RUNNERS: Record<string, (job: BackgroundJob) => Promise<{
     inputTokens: number;
     outputTokens: number;
 }>> = {
-    school_email_digest: runSchoolEmailDigest,
+    school_email_digest:    runSchoolEmailDigest,
+    weeknight_meal_planner: runWeeklyMealPlanner,
 };
 
 const MODEL = 'claude-sonnet-4-20250514';
