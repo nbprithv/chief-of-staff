@@ -95,7 +95,13 @@ export async function runSchoolEmailDigest(job: BackgroundJob): Promise<SkillRun
     });
 
     // ── 1. Fetch Galloway emails ─────────────────────────────────────────────
-    const emails = await fetchGallowayEmails(userId);
+    // Use the job's last successful run as the cutoff so we don't re-process
+    // emails already covered by a previous run. Falls back to 24h on first run.
+    const since  = job.last_run_at ? new Date(job.last_run_at) : null;
+    const emails = await fetchGallowayEmails(userId, since);
+    logger.info('[school-digest] email fetch window', {
+        since: since?.toISOString() ?? 'last 24h (first run)',
+    });
     logger.info('[school-digest] emails fetched', { count: emails.length });
 
     // ── 2. Ask Claude for structured extraction ──────────────────────────────

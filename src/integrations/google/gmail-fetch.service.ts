@@ -59,10 +59,17 @@ export async function fetchEmailsByQuery(
 /**
  * Runs two Gmail searches for Galloway School emails and deduplicates by message ID.
  * Search A: sender/subject signals; Search B: body mentions.
+ *
+ * @param since - fetch only emails received after this timestamp. Falls back to
+ *                the last 24 hours when null/undefined (e.g. first-ever run).
  */
-export async function fetchGallowayEmails(userId: string): Promise<FetchedEmailSummary[]> {
-    const QUERY_A = 'from:gallowayschool.org OR from:galloway OR subject:galloway newer_than:1d';
-    const QUERY_B = '"galloway school" newer_than:1d';
+export async function fetchGallowayEmails(userId: string, since?: Date | null): Promise<FetchedEmailSummary[]> {
+    const timeFilter = since
+        ? `after:${Math.floor(since.getTime() / 1000)}`
+        : 'newer_than:1d';
+
+    const QUERY_A = `from:gallowayschool.org OR from:galloway OR subject:galloway ${timeFilter}`;
+    const QUERY_B = `"galloway school" ${timeFilter}`;
 
     const [setA, setB] = await Promise.all([
         fetchEmailsByQuery(userId, QUERY_A, 20),
