@@ -17,7 +17,7 @@
   "crons": [
     {
       "path": "/api/cron/school-email-digest",
-      "schedule": "0 18 * * 1-5"
+      "schedule": "0 22 * * 1-5"
     },
     {
       "path": "/api/cron/weeknight-meal-planner",
